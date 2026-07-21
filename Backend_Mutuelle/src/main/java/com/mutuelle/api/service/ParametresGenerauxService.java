@@ -24,6 +24,7 @@ public class ParametresGenerauxService {
         existing.setTauxInteretEmprunts(updated.getTauxInteretEmprunts());
         existing.setMontantPenaliteRetard(updated.getMontantPenaliteRetard());
         existing.setFacteurEmprunt(updated.getFacteurEmprunt());
+        existing.setDureeMaximaleEmprunt(updated.getDureeMaximaleEmprunt());
         
         return repository.save(existing);
     }

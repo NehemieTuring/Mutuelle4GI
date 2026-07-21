@@ -1,0 +1,3 @@
+ALTER TABLE membres
+ADD COLUMN compte_verifie TINYINT(1) NOT NULL DEFAULT 0,
+ADD COLUMN inscription_payee TINYINT(1) NOT NULL DEFAULT 0;

@@ -1,9 +1,13 @@
 package com.mutuelle.api.controller;
 
+import com.mutuelle.api.dto.CreateMembreRequest;
+import com.mutuelle.api.dto.ModifierMotDePasseRequest;
+import com.mutuelle.api.dto.LoginResponse;
 import com.mutuelle.api.entity.Membre;
 import com.mutuelle.api.service.MembreService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -40,8 +44,29 @@ public class MembreController {
     }
 
     @PostMapping
-    public ResponseEntity<Membre> createMembre(@Valid @RequestBody Membre membre) {
-        Membre created = membreService.createMembre(membre);
-        return ResponseEntity.ok(created);
+    public ResponseEntity<?> enregistrerMembre(@Valid @RequestBody CreateMembreRequest request) {
+        try {
+            Membre created = membreService.enregistrerMembre(request);
+            return ResponseEntity.status(HttpStatus.CREATED).body(created);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new com.mutuelle.api.dto.LoginResponse(false, e.getMessage(), null));
+        }
+    }
+
+    @PostMapping("/{id}/modifier-mot-de-passe")
+    public ResponseEntity<?> modifierMotDePasse(@PathVariable String id, @Valid @RequestBody ModifierMotDePasseRequest request) {
+        try {
+            Membre updated = membreService.modifierMotDePasse(id, request.getNouveauMotDePasse());
+            return ResponseEntity.ok(LoginResponse.builder()
+                    .success(true)
+                    .message("Mot de passe modifié avec succès. Votre compte est maintenant vérifié.")
+                    .data(updated)
+                    .build());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(LoginResponse.builder()
+                    .success(false)
+                    .message(e.getMessage())
+                    .build());
+        }
     }
 }

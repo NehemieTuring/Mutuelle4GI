@@ -9,4 +9,6 @@ import java.util.Optional;
 @Repository
 public interface MembreRepository extends JpaRepository<Membre, String> {
     Optional<Membre> findByCouriel(String couriel);
+    long countByEtat(String etat);
+    boolean existsByDetteGreaterThan(java.math.BigDecimal val);
 }

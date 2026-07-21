@@ -32,4 +32,22 @@ public class ParametresController {
             return ResponseEntity.notFound().build();
         }
     }
+
+    @GetMapping("/montant-inscription")
+    public ResponseEntity<java.math.BigDecimal> getMontantInscription() {
+        try {
+            return ResponseEntity.ok(service.getParametres().getMontantInscription());
+        } catch (IllegalStateException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @GetMapping("/montant-solidarite")
+    public ResponseEntity<java.math.BigDecimal> getMontantSolidarite() {
+        try {
+            return ResponseEntity.ok(service.getParametres().getMontantSolidarite());
+        } catch (IllegalStateException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
 }
