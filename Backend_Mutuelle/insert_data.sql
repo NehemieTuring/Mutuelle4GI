@@ -12,7 +12,7 @@ VALUES (
     'Bernabé', 
     'bernabe.batchakui@univ-yaounde1.cm', 
     '677106463', 
-    'MonMot2Passse!'
+    'MonMot2Passe!'
 );
 
 -- Anne Marie Chana
@@ -24,7 +24,7 @@ VALUES (
     'Anne Marie', 
     'anne.chana@univ-yaounde1.cm', 
     '675097283', 
-    'MonMot2Passse!'
+    'MonMot2Passe!'
 );
 
 -- Thomas Djotio
@@ -36,7 +36,7 @@ VALUES (
     'Thomas', 
     'thomas.djotio@univ-yaounde1.cm', 
     '694554537', 
-    'MonMot2Passse!'
+    'MonMot2Passe!'
 );
 
 -- Edouard Kouamou
@@ -48,7 +48,7 @@ VALUES (
     'Edouard', 
     'edouard.kouamou@univ-yaounde1.cm', 
     '677106463', 
-    'MonMot2Passse!'
+    'MonMot2Passe!'
 );
 
 
@@ -60,7 +60,7 @@ VALUES (
     'PRESIDENT', 
     'Le president de la mutuelle', 
     'president@mutuelle.com', 
-    'MonMot2Passse!', 
+    'MonMot2Passe!', 
     @id_batchakui
 );
 
@@ -71,7 +71,7 @@ VALUES (
     'TRESORIER', 
     'Le tresorier de la mutuelle', 
     'tresorier@mutuelle.com', 
-    'MonMot2Passse!', 
+    'MonMot2Passe!', 
     @id_djotio
 );
 
@@ -82,7 +82,7 @@ VALUES (
     'SECRETAIRE_GENERAL', 
     'Le secretaire general de la mutuelle', 
     'secretaire_general@mutuelle.com', 
-    'MonMot2Passse!', 
+    'MonMot2Passe!', 
     @id_chana
 );
 
@@ -93,6 +93,6 @@ VALUES (
     'COMMISSAIRE_AUX_COMPTES', 
     'Le commissaire aux comptes de la mutuelle', 
     'commissaire_aux_comptes@mutuelle.com', 
-    'MonMot2Passse!', 
+    'MonMot2Passe!', 
     @id_kouamou
 );

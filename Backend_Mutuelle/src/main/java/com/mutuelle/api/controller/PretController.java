@@ -1,10 +1,14 @@
 package com.mutuelle.api.controller;
 
 import com.mutuelle.api.dto.LoginResponse;
+import com.mutuelle.api.entity.Pret;
+import com.mutuelle.api.entity.Remboursement;
 import com.mutuelle.api.service.RemboursementService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/prets")
@@ -14,14 +18,21 @@ public class PretController {
     @Autowired
     private RemboursementService remboursementService;
 
+    @GetMapping
+    public ResponseEntity<List<Pret>> obtenirTousPrets() {
+        return ResponseEntity.ok(remboursementService.obtenirTousPrets());
+    }
+
+    @GetMapping("/{id}/remboursements")
+    public ResponseEntity<List<Remboursement>> obtenirRemboursementsDuPret(@PathVariable String id) {
+        return ResponseEntity.ok(remboursementService.obtenirRemboursementsDuPret(id));
+    }
+
     @PostMapping("/verifier-echeances")
     public ResponseEntity<?> verifierEcheances() {
         try {
-            remboursementService.verifierEcheancesEtNotifier();
-            return ResponseEntity.ok(LoginResponse.builder()
-                    .success(true)
-                    .message("Vérification des échéances effectuée avec succès et notifications envoyées.")
-                    .build());
+            var result = remboursementService.verifierEcheancesEtNotifierDetail();
+            return ResponseEntity.ok(result);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(LoginResponse.builder()
                     .success(false)

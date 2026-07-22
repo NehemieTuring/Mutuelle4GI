@@ -131,6 +131,22 @@ public class VersementService {
         return versementRepository.findByStatut(StatutVersement.en_attente);
     }
 
+    public List<Versement> obtenirTousVersements() {
+        return versementRepository.findAll();
+    }
+
+    public List<Versement> obtenirVersementsParRaison(RaisonVersement raison) {
+        return versementRepository.findByRaisonOrderByDateVersementDesc(raison);
+    }
+
+    public List<Versement> obtenirVersementsDuMembre(String membreId) {
+        return versementRepository.findByMembreIdOrderByDateVersementDesc(membreId);
+    }
+
+    public List<Versement> obtenirVersementsDuMembreParRaison(String membreId, RaisonVersement raison) {
+        return versementRepository.findByMembreIdAndRaisonOrderByDateVersementDesc(membreId, raison);
+    }
+
     public Versement accepterVersement(String versementId) {
         Versement versement = versementRepository.findById(versementId)
                 .orElseThrow(() -> new IllegalArgumentException("Versement avec l'id " + versementId + " n'existe pas"));

@@ -4,6 +4,7 @@ import com.mutuelle.api.dto.DemandeInscriptionRequest;
 import com.mutuelle.api.dto.DemandeSolidariteRequest;
 import com.mutuelle.api.dto.DemandeEpargneRequest;
 import com.mutuelle.api.dto.LoginResponse;
+import com.mutuelle.api.entity.RaisonVersement;
 import com.mutuelle.api.entity.Versement;
 import com.mutuelle.api.service.VersementService;
 import jakarta.validation.Valid;
@@ -27,7 +28,7 @@ public class VersementController {
         try {
             Versement versement = versementService.demanderInscription(request.getMembreId(), request.getMontant());
             return ResponseEntity.status(HttpStatus.CREATED).body(versement);
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException | IllegalStateException e) {
             return ResponseEntity.badRequest().body(LoginResponse.builder()
                     .success(false)
                     .message(e.getMessage())
@@ -40,7 +41,7 @@ public class VersementController {
         try {
             Versement versement = versementService.demanderSolidarite(request.getMembreId(), request.getMontant());
             return ResponseEntity.status(HttpStatus.CREATED).body(versement);
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException | IllegalStateException e) {
             return ResponseEntity.badRequest().body(LoginResponse.builder()
                     .success(false)
                     .message(e.getMessage())
@@ -53,12 +54,42 @@ public class VersementController {
         try {
             Versement versement = versementService.demanderEpargne(request.getMembreId(), request.getMontant());
             return ResponseEntity.status(HttpStatus.CREATED).body(versement);
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException | IllegalStateException e) {
             return ResponseEntity.badRequest().body(LoginResponse.builder()
                     .success(false)
                     .message(e.getMessage())
                     .build());
         }
+    }
+
+    @GetMapping
+    public ResponseEntity<List<Versement>> obtenirTousVersements(
+            @RequestParam(required = false) String raison) {
+        if (raison != null && !raison.isBlank()) {
+            try {
+                RaisonVersement raisonEnum = RaisonVersement.valueOf(raison);
+                return ResponseEntity.ok(versementService.obtenirVersementsParRaison(raisonEnum));
+            } catch (IllegalArgumentException e) {
+                return ResponseEntity.badRequest().build();
+            }
+        }
+        return ResponseEntity.ok(versementService.obtenirTousVersements());
+    }
+
+    @GetMapping("/membre/{membreId}")
+    public ResponseEntity<List<Versement>> obtenirVersementsDuMembre(
+            @PathVariable String membreId,
+            @RequestParam(required = false) String raison) {
+        if (raison != null && !raison.isBlank()) {
+            try {
+                RaisonVersement raisonEnum = RaisonVersement.valueOf(raison);
+                return ResponseEntity.ok(
+                        versementService.obtenirVersementsDuMembreParRaison(membreId, raisonEnum));
+            } catch (IllegalArgumentException e) {
+                return ResponseEntity.badRequest().build();
+            }
+        }
+        return ResponseEntity.ok(versementService.obtenirVersementsDuMembre(membreId));
     }
 
     @GetMapping("/en-attente")

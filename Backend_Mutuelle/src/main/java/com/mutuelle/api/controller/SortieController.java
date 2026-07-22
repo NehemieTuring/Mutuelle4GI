@@ -6,6 +6,7 @@ import com.mutuelle.api.dto.DemandeRetraitRequest;
 import com.mutuelle.api.dto.EligibilityResponse;
 import com.mutuelle.api.dto.SoldeTotalResponse;
 import com.mutuelle.api.entity.ParametresAide;
+import com.mutuelle.api.entity.Pret;
 import com.mutuelle.api.entity.Sortie;
 import com.mutuelle.api.service.SortieService;
 import jakarta.validation.Valid;
@@ -29,6 +30,16 @@ public class SortieController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/membres/{membreId}/sorties")
+    public ResponseEntity<List<Sortie>> obtenirSortiesDuMembre(@PathVariable String membreId) {
+        return ResponseEntity.ok(sortieService.obtenirSortiesDuMembre(membreId));
+    }
+
+    @GetMapping("/membres/{membreId}/prets")
+    public ResponseEntity<List<Pret>> obtenirPretsDuMembre(@PathVariable String membreId) {
+        return ResponseEntity.ok(sortieService.obtenirPretsDuMembre(membreId));
+    }
+
     @GetMapping("/membres/{membreId}/eligible-aide")
     public ResponseEntity<EligibilityResponse> verifierEligibiliteAide(@PathVariable String membreId) {
         EligibilityResponse response = sortieService.verifierEligibiliteAide(membreId);
@@ -39,6 +50,21 @@ public class SortieController {
     public ResponseEntity<EligibilityResponse> verifierEligibilitePret(@PathVariable String membreId) {
         EligibilityResponse response = sortieService.verifierEligibilitePret(membreId);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/sorties")
+    public ResponseEntity<List<Sortie>> obtenirToutesSorties() {
+        return ResponseEntity.ok(sortieService.obtenirToutesSorties());
+    }
+
+    @GetMapping("/sorties/en-attente-sg")
+    public ResponseEntity<List<Sortie>> obtenirSortiesEnAttenteSg() {
+        return ResponseEntity.ok(sortieService.obtenirSortiesEnAttenteSg());
+    }
+
+    @GetMapping("/sorties/en-attente-tr")
+    public ResponseEntity<List<Sortie>> obtenirSortiesEnAttenteTr() {
+        return ResponseEntity.ok(sortieService.obtenirSortiesEnAttenteTr());
     }
 
     @PostMapping("/sorties/demande-pret")

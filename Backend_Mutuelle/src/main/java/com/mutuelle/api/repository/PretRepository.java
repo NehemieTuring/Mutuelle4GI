@@ -8,5 +8,7 @@ import java.util.List;
 @Repository
 public interface PretRepository extends JpaRepository<Pret, String> {
     List<Pret> findByMembreIdAndStatut(String membreId, String statut);
+    List<Pret> findByMembreIdOrderByDatePretDesc(String membreId);
+    List<Pret> findAllByOrderByDatePretDesc();
     boolean existsByStatut(String statut);
 }

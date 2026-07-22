@@ -17,7 +17,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -41,6 +44,21 @@ public class RemboursementService {
     @Autowired
     private ParametresGenerauxService parametresGenerauxService;
 
+    @Autowired
+    private SimulationClock simulationClock;
+
+    public List<Pret> obtenirTousPrets() {
+        return pretRepository.findAllByOrderByDatePretDesc();
+    }
+
+    public List<Remboursement> obtenirRemboursementsDuPret(String pretId) {
+        return remboursementRepository.findByPretId(pretId);
+    }
+
+    public List<Remboursement> obtenirTousRemboursements() {
+        return remboursementRepository.findAll();
+    }
+
     public Remboursement demanderRemboursement(String pretId, BigDecimal montant) {
         Pret pret = pretRepository.findById(pretId)
                 .orElseThrow(() -> new IllegalArgumentException("L'emprunt avec l'id " + pretId + " n'existe pas"));
@@ -55,16 +73,29 @@ public class RemboursementService {
 
         Membre membre = pret.getMembre();
         BigDecimal detteMembre = membre.getDette() != null ? membre.getDette() : BigDecimal.ZERO;
+        BigDecimal dejaEnAttente = remboursementRepository.sumMontantByPretIdAndStatut(pretId, "en_attente_tr");
+        if (dejaEnAttente == null) {
+            dejaEnAttente = BigDecimal.ZERO;
+        }
+        BigDecimal restePayable = detteMembre.subtract(dejaEnAttente);
+        if (restePayable.compareTo(BigDecimal.ZERO) < 0) {
+            restePayable = BigDecimal.ZERO;
+        }
 
-        if (montant.compareTo(detteMembre) > 0) {
-            throw new IllegalArgumentException("Le montant du remboursement (" + montant + ") dépasse la dette actuelle du membre (" + detteMembre + ")");
+        if (montant.compareTo(restePayable) > 0) {
+            throw new IllegalArgumentException(
+                    "Le montant du remboursement (" + montant + ") dépasse le reste à rembourser disponible ("
+                            + restePayable + "). Dette actuelle: " + detteMembre
+                            + (dejaEnAttente.compareTo(BigDecimal.ZERO) > 0
+                            ? ", déjà en attente de validation: " + dejaEnAttente
+                            : ""));
         }
 
         Remboursement remboursement = Remboursement.builder()
                 .id(UUID.randomUUID().toString())
                 .pret(pret)
                 .montant(montant)
-                .dateRemboursement(LocalDateTime.now())
+                .dateRemboursement(simulationClock.now())
                 .statut("en_attente_tr")
                 .build();
 
@@ -128,20 +159,50 @@ public class RemboursementService {
 
     @Scheduled(cron = "0 0 0 * * ?") // Exécuté tous les jours à minuit
     public void verifierEcheancesEtNotifier() {
+        verifierEcheancesEtNotifierDetail();
+    }
+
+    /**
+     * Vérifie les prêts arrivés à échéance selon l'horloge applicative (réelle ou simulée).
+     */
+    public Map<String, Object> verifierEcheancesEtNotifierDetail() {
         List<Pret> prets = pretRepository.findAll();
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = simulationClock.now();
+        List<Map<String, Object>> echus = new ArrayList<>();
+
         for (Pret pret : prets) {
             if ("non rembourse".equals(pret.getStatut()) &&
                     (pret.getDateEcheance().isBefore(now) || pret.getDateEcheance().isEqual(now))) {
 
-                log.info("[NOTIFICATION - PRESIDENT] L'échéance du prêt {} de {} pour le membre {} est arrivée.",
-                        pret.getId(), pret.getMontant(), pret.getMembre().getCouriel());
-                log.info("[NOTIFICATION - SECRETAIRE_GENERAL] L'échéance du prêt {} de {} pour le membre {} est arrivée.",
-                        pret.getId(), pret.getMontant(), pret.getMembre().getCouriel());
-                log.info("[NOTIFICATION - MEMBRE] L'échéance de votre prêt {} de {} est arrivée.",
-                        pret.getId(), pret.getMontant());
+                log.info("[NOTIFICATION - PRESIDENT] L'échéance du prêt {} de {} pour le membre {} est arrivée (horloge: {}).",
+                        pret.getId(), pret.getMontant(), pret.getMembre().getCouriel(), now);
+                log.info("[NOTIFICATION - SECRETAIRE_GENERAL] L'échéance du prêt {} de {} pour le membre {} est arrivée (horloge: {}).",
+                        pret.getId(), pret.getMontant(), pret.getMembre().getCouriel(), now);
+                log.info("[NOTIFICATION - MEMBRE] L'échéance de votre prêt {} de {} est arrivée (horloge: {}).",
+                        pret.getId(), pret.getMontant(), now);
+
+                Map<String, Object> item = new LinkedHashMap<>();
+                item.put("pretId", pret.getId());
+                item.put("montant", pret.getMontant());
+                item.put("montantARembourser", pret.getMontantARembourser());
+                item.put("dateEcheance", pret.getDateEcheance().toString());
+                item.put("membre", pret.getMembre().getCouriel());
+                item.put("detteMembre", pret.getMembre().getDette());
+                item.put("epargneMembre", pret.getMembre().getEpargne());
+                item.put("statut", pret.getStatut());
+                echus.add(item);
             }
         }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("success", true);
+        result.put("message", echus.isEmpty()
+                ? "Aucun prêt échu à cette date."
+                : echus.size() + " prêt(s) échu(s) — notifications envoyées.");
+        result.put("dateActuelle", now.toString());
+        result.put("horlogeSimulee", simulationClock.isSimulee());
+        result.put("pretsEchus", echus);
+        return result;
     }
 
     public void appliquerPenalite(String pretId) {
@@ -152,8 +213,14 @@ public class RemboursementService {
             throw new IllegalStateException("L'emprunt est déjà remboursé");
         }
 
-        if (LocalDateTime.now().isBefore(pret.getDateEcheance())) {
-            throw new IllegalStateException("L'emprunt n'est pas encore arrivé à échéance");
+        LocalDateTime now = simulationClock.now();
+        if (now.isBefore(pret.getDateEcheance())) {
+            throw new IllegalStateException(
+                    "L'emprunt n'est pas encore arrivé à échéance (échéance: "
+                            + pret.getDateEcheance()
+                            + ", date actuelle: "
+                            + now
+                            + ")");
         }
 
         ParametresGeneraux params = parametresGenerauxService.getParametres();

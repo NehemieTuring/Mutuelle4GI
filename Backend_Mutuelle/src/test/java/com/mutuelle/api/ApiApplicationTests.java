@@ -538,13 +538,14 @@ class ApiApplicationTests {
         Sortie sortieSg = sortieService.accepterSg(sortie.getId());
         assertEquals(StatutSortie.en_attente_tresorier, sortieSg.getStatut());
 
-        // 8. Validation Tresorier
+        // 8. Validation Tresorier : finalise l'emprunt (plus de confirmation membre)
         Sortie sortieTr = sortieService.accepterTr(sortieSg.getId());
         assertEquals(StatutSortie.accepte_par_sg_accepte_par_tr, sortieTr.getStatut());
 
-        // 9. Confirmation membre, décaissement et redistribution des intérêts
-        Sortie sortieFin = sortieService.confirmerMembre(sortieTr.getId());
-        assertEquals(StatutSortie.recue_par_membre, sortieFin.getStatut());
+        // Confirmation membre refusée pour un emprunt
+        assertThrows(IllegalStateException.class, () -> {
+            sortieService.confirmerMembre(sortieTr.getId());
+        });
 
         // Intérêts calculés : 40 000 * 0.03 = 1 200 FCFA
         // Montant déduit de la caisse : 40 000 - 1 200 = 38 800 FCFA
@@ -557,7 +558,7 @@ class ApiApplicationTests {
         assertEquals(1, prets.size());
         Pret pretEnregistre = prets.get(0);
         assertEquals(0, pretEnregistre.getMontant().compareTo(new BigDecimal("40000.00")));
-        assertEquals(0, pretEnregistre.getMontantARembourser().compareTo(new BigDecimal("41200.00")));
+        assertEquals(0, pretEnregistre.getMontantARembourser().compareTo(new BigDecimal("40000.00")));
         assertEquals("non rembourse", pretEnregistre.getStatut());
         assertNotNull(pretEnregistre.getDateEcheance());
 
@@ -674,16 +675,12 @@ class ApiApplicationTests {
         // Demander un prêt
         Sortie sortie = sortieService.demanderPret(membre.getId(), new BigDecimal("10000.00"));
         sortieService.accepterSg(sortie.getId());
-        sortieService.accepterTr(sortie.getId());
+        Sortie sortieTr = sortieService.accepterTr(sortie.getId());
+        assertEquals(StatutSortie.accepte_par_sg_accepte_par_tr, sortieTr.getStatut());
 
-        // Confirmer le prêt
-        Sortie sortieFin = sortieService.confirmerMembre(sortie.getId());
-        assertEquals(StatutSortie.recue_par_membre, sortieFin.getStatut());
-
-        // La dette du membre doit être égale à montant + intérêt (10 000 + 300 = 10
-        // 300)
+        // La dette du membre doit être égale au capital prêté (10 000)
         Membre membreApresPret = membreRepository.findById(membre.getId()).orElseThrow();
-        assertEquals(0, membreApresPret.getDette().compareTo(new BigDecimal("10300.00")));
+        assertEquals(0, membreApresPret.getDette().compareTo(new BigDecimal("10000.00")));
 
         // Le membre n'est plus éligible à un prêt car dette > 0
         EligibilityResponse eligibilityPret = sortieService.verifierEligibilitePret(membre.getId());
@@ -702,20 +699,20 @@ class ApiApplicationTests {
         Remboursement remb1Valide = remboursementService.validerRemboursement(remb1.getId());
         assertEquals("valide_tr", remb1Valide.getStatut());
 
-        // Vérifier dette membre (10 300 - 4 000 = 6 300)
+        // Vérifier dette membre (10 000 - 4 000 = 6 000)
         Membre membreApresRemb1 = membreRepository.findById(membre.getId()).orElseThrow();
-        assertEquals(0, membreApresRemb1.getDette().compareTo(new BigDecimal("6300.00")));
+        assertEquals(0, membreApresRemb1.getDette().compareTo(new BigDecimal("6000.00")));
 
         // Prêt toujours non remboursé
         Pret pretApresRemb1 = pretRepository.findById(pret.getId()).orElseThrow();
         assertEquals("non rembourse", pretApresRemb1.getStatut());
         assertNotNull(pretApresRemb1.getDateRemboursement());
 
-        // Demander remboursement restant (6 300)
-        Remboursement remb2 = remboursementService.demanderRemboursement(pret.getId(), new BigDecimal("6300.00"));
+        // Demander remboursement restant (6 000)
+        Remboursement remb2 = remboursementService.demanderRemboursement(pret.getId(), new BigDecimal("6000.00"));
         remboursementService.validerRemboursement(remb2.getId());
 
-        // Vérifier dette membre (6 300 - 6 300 = 0)
+        // Vérifier dette membre (6 000 - 6 000 = 0)
         Membre membreApresRemb2 = membreRepository.findById(membre.getId()).orElseThrow();
         assertEquals(0, membreApresRemb2.getDette().compareTo(BigDecimal.ZERO));
 
@@ -792,11 +789,10 @@ class ApiApplicationTests {
         params.setCaisseEpargnes(new BigDecimal("100000.00"));
         parametresGenerauxRepository.save(params);
 
-        // Emprunt
+        // Emprunt (finalisé à la validation TR, sans confirmation membre)
         Sortie sortie = sortieService.demanderPret(membre.getId(), new BigDecimal("1000.00"));
         sortieService.accepterSg(sortie.getId());
         sortieService.accepterTr(sortie.getId());
-        sortieService.confirmerMembre(sortie.getId());
 
         // Clôturer l'exercice doit échouer car un prêt est en cours
         assertThrows(IllegalStateException.class, () -> {

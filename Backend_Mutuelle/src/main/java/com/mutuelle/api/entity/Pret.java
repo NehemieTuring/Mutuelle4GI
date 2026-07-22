@@ -27,7 +27,7 @@ public class Pret {
     private LocalDateTime datePret;
 
     @NotNull
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "membre_id", nullable = false)
     private Membre membre;
 

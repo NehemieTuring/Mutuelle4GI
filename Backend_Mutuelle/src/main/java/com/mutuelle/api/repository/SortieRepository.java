@@ -10,5 +10,7 @@ import java.util.List;
 @Repository
 public interface SortieRepository extends JpaRepository<Sortie, String> {
     List<Sortie> findByStatut(StatutSortie statut);
+    List<Sortie> findByStatutOrderByDateSortieDesc(StatutSortie statut);
     List<Sortie> findByMembreId(String membreId);
+    List<Sortie> findAllByOrderByDateSortieDesc();
 }

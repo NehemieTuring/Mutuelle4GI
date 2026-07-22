@@ -49,16 +49,16 @@ Il faut tester tous les aspects sur chaque table :
 - Les recuperations (en prenant en compte tous les scenariis sur les contraintes que doit respecter la table)
 
 # Membres a inserer 
-1. nom : BATCHAKUI, prenom :  Bernabé, couriel : bernabe.batchakui@univ-yaounde1.cm, telephone : 677106463, mot de passe : MonMot2Passse! (ici, le mot de passe n'est pas encore hache)
-2. nom : CHANA, prenom : Anne Marie, couriel : anne.chana@univ-yaounde1.cm, telephone : 675097283, mot de passe :  MonMot2Passse! 
-3. nom : DJOTIO, prenom :  Thomas, couriel : thomas.djotio@univ-yaounde1.cm, telephone : 694554537, mot de passe :  MonMot2Passse!  
-4. nom : KOUAMOU, prenom : Edouard, couriel : edouard.kouamou@univ-yaounde1.cm, telephone : 677106463, mot de passe :  MonMot2Passse! 
+1. nom : BATCHAKUI, prenom :  Bernabé, couriel : bernabe.batchakui@univ-yaounde1.cm, telephone : 677106463, mot de passe : MonMot2Passe! (ici, le mot de passe n'est pas encore hache)
+2. nom : CHANA, prenom : Anne Marie, couriel : anne.chana@univ-yaounde1.cm, telephone : 675097283, mot de passe :  MonMot2Passe! 
+3. nom : DJOTIO, prenom :  Thomas, couriel : thomas.djotio@univ-yaounde1.cm, telephone : 694554537, mot de passe :  MonMot2Passe!  
+4. nom : KOUAMOU, prenom : Edouard, couriel : edouard.kouamou@univ-yaounde1.cm, telephone : 677106463, mot de passe :  MonMot2Passe! 
 
 # postes a inserer
-1. intitule : PRESIDENT, description : Le president de la mutuelle, login : president@mutuelle.cm, mot de passe : MonMot2Passse!, membre : uuid de bernabe batchakui
-2. intitule : TRESORIER, description : Le tresorier de la mutuelle, login : tresorier@mutuelle.cm, mot de passe : MonMot2Passse!, membre : uuid de thomas djotio
-3. intitule : SECRETAIRE_GENERAL, description : Le secretaire general de la mutuelle, login : secretaire_general@mutuelle.cm, mot de passe : MonMot2Passse!, membre : uuid de anne chana
-4. intitule : COMMISSAIRE_AUX_COMPTES, description : Le commissaire aux comptes de la mutuelle, login : commissaire_aux_comptes@mutuelle.cm, mot de passe : MonMot2Passse!, membre : uuid de edouard kouamou
+1. intitule : PRESIDENT, description : Le president de la mutuelle, login : president@mutuelle.cm, mot de passe : MonMot2Passe!, membre : uuid de bernabe batchakui
+2. intitule : TRESORIER, description : Le tresorier de la mutuelle, login : tresorier@mutuelle.cm, mot de passe : MonMot2Passe!, membre : uuid de thomas djotio
+3. intitule : SECRETAIRE_GENERAL, description : Le secretaire general de la mutuelle, login : secretaire_general@mutuelle.cm, mot de passe : MonMot2Passe!, membre : uuid de anne chana
+4. intitule : COMMISSAIRE_AUX_COMPTES, description : Le commissaire aux comptes de la mutuelle, login : commissaire_aux_comptes@mutuelle.cm, mot de passe : MonMot2Passe!, membre : uuid de edouard kouamou
 
 
 # Procedure de creation d'un membre
@@ -181,13 +181,12 @@ avec les champs suivants :
 - s'il peut beneficier d'un pret, on lui demande le montant du pret (le montant demande doit etre au plus egal a 5 fois l'epargne actuelle du membre)
 - si le montant demande est valide, on continue
 - on verifie que le montant dans la caisse des epargnes est superieur ou egale au montant du pret choisi par le membre. si c'est le cas, on continue, sinon on informe le membre qu'il ne peut pas beneficier du pret car il n'y a pas assez de liquidites dans la caisse des epargnes 
-- si il y a les liquidites, on cree une entree dans la table des sorties avec la raison 'pret', le montant de la sortie est le montant du pret choisi par le membre.  une fois la sortie creee, le secretaire general peut l'accepter ou la refuser.  si le secretaire general l'accepte, le statut devient en_attente_tresorier, et le tresorier peut l'accepter ou la refuser.  si le tresorier l'accepte, le statut devient accepte, et le membre peut recevoir l'emprunt.  il faut donc un endpoint pour chaque changement de statut possible (accepter_sg, refuser_sg, accepter_tr, refuser_tr, confirmer_membre etc)
+- si il y a les liquidites, on cree une entree dans la table des sorties avec la raison 'pret', le montant de la sortie est le montant du pret choisi par le membre.  une fois la sortie creee, le secretaire general peut l'accepter ou la refuser.  si le secretaire general l'accepte, le statut devient en_attente_tresorier, et le tresorier peut l'accepter ou la refuser.  si le tresorier l'accepte, le statut devient accepte_par_sg_accepte_par_tr : la sequence s'arrete la (pas de confirmation de reception par le membre).  il faut donc un endpoint pour chaque changement de statut possible (accepter_sg, refuser_sg, accepter_tr, refuser_tr)
 - si le secretaire general refuse la sortie, le statut devient refuse_par_sg_refuse_par_tr
 - si le secretaire general accepte la sortie, le statut devient en_attente_tresorier
 - si le tresorier accepte la sortie, le statut devient accepte_par_sg_accepte_par_tr
 - si le tresorier refuse la sortie, le statut devient accepte_par_sg_refuse_par_tr
-- si le membre recoit l'emprunt, il clique sur 'confirmer' et le statut devient 'recue_par_membre' 
-- lorsque le membre recoit l'emprunt, on doit aussi diminuer le montant dans la caisse des epargnes du montant de l'emprunt, auquel on doit soustraire les interets de ce montant (le taux d'interet est a recuperer dans la table des parametres generaux). on doit aussi enregistrer l'emprunt dans la table des prets avec le statut non rembourse et la date d'echeance qui est egale a la date actuelle + le nombre de mois pour le remboursement de l'emprunt, a recuperer dans la table des parametres generaux. le montant du pret a enregistrer est egal au montant accorde + les interets de ce montant
+- lorsque le tresorier valide l'emprunt (statut accepte_par_sg_accepte_par_tr), on doit aussi diminuer le montant dans la caisse des epargnes du montant de l'emprunt, auquel on doit soustraire les interets de ce montant (le taux d'interet est a recuperer dans la table des parametres generaux). on doit aussi enregistrer l'emprunt dans la table des prets avec le statut non rembourse et la date d'echeance qui est egale a la date actuelle + le nombre de mois pour le remboursement de l'emprunt, a recuperer dans la table des parametres generaux. le montant a rembourser par le membre est egal au capital prete uniquement (sans les interets). la dette du membre est incrementee de ce meme capital. les interets sont redistribues aux autres epargnants.
 - Une fois ceci fait, il faut repartir l'epargne entre les membres qui ont un epargne non nul. Pour cela, voici comment on procede : 
     - on calcule la part (le pourcentage) de l'epargne ce chaque membre (sauf le membre qui demande le pret) par rapport a l'epargne totale de tous les membres. On obtient par exemple un taux de x%.
     - on calcule l'interet sur le pret. Pour cela, on prend le taux d'interet dans la table des parametres generaux et on calcule le montant des interets a appliquer (il faut que ce montant soit un entier, donc on arrondit a l'entier inferieur). On obtient par exemple un montant de y FCFA.

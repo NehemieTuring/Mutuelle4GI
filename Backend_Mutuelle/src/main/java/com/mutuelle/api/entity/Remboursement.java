@@ -23,7 +23,7 @@ public class Remboursement {
     private LocalDateTime dateRemboursement;
 
     @NotNull
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "pret_id", nullable = false)
     private Pret pret;
 
