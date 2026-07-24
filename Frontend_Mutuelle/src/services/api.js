@@ -1,5 +1,12 @@
 import { setSession, clearSession, updateMembreSession } from './auth'
 
+/** Base API : vide en dev (proxy Vite), URL absolue en prod/PWA réseau. */
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
+
+function apiUrl(endpoint) {
+  return `${API_BASE}${endpoint}`
+}
+
 /**
  * @param {string} endpoint
  * @param {RequestInit} [options]
@@ -7,7 +14,7 @@ import { setSession, clearSession, updateMembreSession } from './auth'
 async function request(endpoint, options = {}) {
   let response
   try {
-    response = await fetch(endpoint, {
+    response = await fetch(apiUrl(endpoint), {
       ...options,
       headers: {
         'Content-Type': 'application/json',

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <rect width="512" height="512" rx="96" fill="#0d1f3c"/>
+  <circle cx="256" cy="256" r="140" fill="#2dd4bf" opacity="0.15"/>
+  <path
+    d="M256 128c-48 0-88 36-88 88 0 44 28 82 68 96v72c0 8 6 14 14 14h12c8 0 14-6 14-14v-72c40-14 68-52 68-96 0-52-40-88-88-88zm0 48c22 0 40 18 40 40s-18 40-40 40-40-18-40-40 18-40 40-40z"
+    fill="#2dd4bf"
+  />
+  <text
+    x="256"
+    y="420"
+    text-anchor="middle"
+    font-family="Arial, sans-serif"
+    font-size="56"
+    font-weight="700"
+    fill="#ffffff"
+  >M</text>
+</svg>
