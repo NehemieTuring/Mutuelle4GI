@@ -153,9 +153,55 @@ export const api = {
     return Number(value)
   },
 
+  /** @returns {Promise<number>} */
+  async getMontantSolidarite() {
+    const value = await request('/api/parametres/montant-solidarite')
+    return Number(value)
+  },
+
   /** @returns {Promise<object>} Paramètres généraux (taux, facteur emprunt, caisses…). */
   async getParametres() {
     return request('/api/parametres')
+  },
+
+  /**
+   * Mise à jour des paramètres généraux (hors caisses — gérées par les flux métier).
+   * @param {object} payload
+   */
+  async updateParametres(payload) {
+    return request('/api/parametres', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    })
+  },
+
+  /**
+   * Mise à jour du profil d’un membre (SG).
+   * @param {string} id
+   * @param {object} payload
+   */
+  async updateMembre(id, payload) {
+    return request(`/api/membres/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    })
+  },
+
+  async ouvrirExercice() {
+    return request('/api/exercices/ouvrir', { method: 'POST' })
+  },
+
+  async ouvrirExerciceForce() {
+    return request('/api/exercices/ouvrir-force', { method: 'POST' })
+  },
+
+  async cloturerExercice() {
+    return request('/api/exercices/cloturer', { method: 'POST' })
+  },
+
+  /** @returns {Promise<object[]>} */
+  async getPostes() {
+    return request('/api/postes')
   },
 
   /** @param {string} membreId */

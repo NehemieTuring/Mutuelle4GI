@@ -1,6 +1,14 @@
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { api } from '../services/api'
-import { getHomePath, getSession, isMembre, isSecretaireGeneral, isTresorier } from '../services/auth'
+import {
+  getHomePath,
+  getSession,
+  isCommissaire,
+  isMembre,
+  isPresident,
+  isSecretaireGeneral,
+  isTresorier,
+} from '../services/auth'
 
 function displayName(session) {
   if (!session?.user) return 'Utilisateur'
@@ -20,7 +28,13 @@ export default function Espace() {
   const session = getSession()
   const navigate = useNavigate()
 
-  if (isSecretaireGeneral() || isTresorier() || isMembre()) {
+  if (
+    isSecretaireGeneral() ||
+    isTresorier() ||
+    isPresident() ||
+    isCommissaire() ||
+    isMembre()
+  ) {
     return <Navigate to={getHomePath()} replace />
   }
 

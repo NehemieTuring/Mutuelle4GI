@@ -47,6 +47,7 @@ export default function MembreAide() {
   const [submitting, setSubmitting] = useState(false)
   const [sheetError, setSheetError] = useState('')
   const [toast, setToast] = useState('')
+  const [confirmingId, setConfirmingId] = useState(null)
 
   const isEligible = eligibility?.eligible === true
   const eligibilityKnown = eligibility != null
@@ -75,6 +76,21 @@ export default function MembreAide() {
       setError(err instanceof Error ? err.message : 'Chargement impossible')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleConfirm = async (sortieId) => {
+    setConfirmingId(sortieId)
+    setError('')
+    try {
+      await api.confirmerSortie(sortieId)
+      setToast('Réception de l’aide confirmée.')
+      await load()
+      await refreshMembre?.()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Confirmation impossible')
+    } finally {
+      setConfirmingId(null)
     }
   }
 
@@ -179,20 +195,36 @@ export default function MembreAide() {
         <div className="sg-empty">Aucune demande d’aide pour le moment.</div>
       ) : (
         <ul className="membre-list">
-          {aides.map((a) => (
-            <li key={a.id} className="membre-card">
-              <div className="membre-card-top">
-                <div className="membre-card-info">
-                  <h2 className="membre-card-name">
-                    {String(a.raison || '').replace(/^aide_/, '')}
-                  </h2>
-                  <p className="membre-card-mail">{formatDate(a.dateSortie)}</p>
+          {aides.map((a) => {
+            const canConfirm = a.statut === 'accepte_par_sg_accepte_par_tr'
+            return (
+              <li key={a.id} className="membre-card">
+                <div className="membre-card-top">
+                  <div className="membre-card-info">
+                    <h2 className="membre-card-name">
+                      {String(a.raison || '').replace(/^aide_/, '')}
+                    </h2>
+                    <p className="membre-card-mail">{formatDate(a.dateSortie)}</p>
+                  </div>
+                  <span className="badge badge-warning">{statutLabel(a.statut)}</span>
                 </div>
-                <span className="badge badge-warning">{statutLabel(a.statut)}</span>
-              </div>
-              <div className="versement-amount">{formatMoney(a.montant)}</div>
-            </li>
-          ))}
+                <div className="versement-amount">{formatMoney(a.montant)}</div>
+                {canConfirm ? (
+                  <button
+                    type="button"
+                    className="btn btn-accent btn-block btn-touch"
+                    style={{ marginTop: 12 }}
+                    disabled={confirmingId === a.id}
+                    onClick={() => handleConfirm(a.id)}
+                  >
+                    {confirmingId === a.id
+                      ? 'Confirmation…'
+                      : 'Confirmer la réception'}
+                  </button>
+                ) : null}
+              </li>
+            )
+          })}
         </ul>
       )}
 

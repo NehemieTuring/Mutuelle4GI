@@ -3,12 +3,15 @@ import { api } from '../services/api'
 import { getSession } from '../services/auth'
 import {
   IconBadge,
+  IconCalendar,
   IconHeart,
   IconLoan,
   IconLogout,
   IconOutflow,
   IconPiggy,
+  IconSettings,
   IconUsers,
+  IconVault,
 } from '../components/NavIcons'
 
 function occupantLabel(session) {
@@ -48,6 +51,18 @@ export default function SgLayout() {
               <IconUsers size={20} />
             </span>
             <span>Membres</span>
+          </NavLink>
+
+          <NavLink
+            to="/sg/caisses"
+            className={({ isActive }) =>
+              `bureau-nav-item ${isActive ? 'is-active' : ''}`
+            }
+          >
+            <span className="bureau-nav-icon">
+              <IconVault size={20} />
+            </span>
+            <span>Caisses</span>
           </NavLink>
 
           <div className="bureau-nav-group">
@@ -105,6 +120,30 @@ export default function SgLayout() {
               Toutes
             </NavLink>
           </div>
+
+          <NavLink
+            to="/sg/parametres"
+            className={({ isActive }) =>
+              `bureau-nav-item ${isActive ? 'is-active' : ''}`
+            }
+          >
+            <span className="bureau-nav-icon">
+              <IconSettings size={20} />
+            </span>
+            <span>Paramètres</span>
+          </NavLink>
+
+          <NavLink
+            to="/sg/exercices"
+            className={({ isActive }) =>
+              `bureau-nav-item ${isActive ? 'is-active' : ''}`
+            }
+          >
+            <span className="bureau-nav-icon">
+              <IconCalendar size={20} />
+            </span>
+            <span>Exercices</span>
+          </NavLink>
         </nav>
 
         <div className="bureau-sidebar-footer">
@@ -132,6 +171,15 @@ export default function SgLayout() {
         >
           <IconUsers />
           <span>Membres</span>
+        </NavLink>
+        <NavLink
+          to="/sg/caisses"
+          className={({ isActive }) =>
+            `bureau-bottom-item ${isActive ? 'is-active' : ''}`
+          }
+        >
+          <IconVault />
+          <span>Caisses</span>
         </NavLink>
         <NavLink
           to="/sg/epargnes"
@@ -177,6 +225,24 @@ export default function SgLayout() {
         >
           <IconOutflow />
           <span>Sorties</span>
+        </NavLink>
+        <NavLink
+          to="/sg/parametres"
+          className={({ isActive }) =>
+            `bureau-bottom-item ${isActive ? 'is-active' : ''}`
+          }
+        >
+          <IconSettings />
+          <span>Params</span>
+        </NavLink>
+        <NavLink
+          to="/sg/exercices"
+          className={({ isActive }) =>
+            `bureau-bottom-item ${isActive ? 'is-active' : ''}`
+          }
+        >
+          <IconCalendar />
+          <span>Exercices</span>
         </NavLink>
         <button type="button" className="bureau-bottom-item" onClick={handleLogout}>
           <IconLogout />

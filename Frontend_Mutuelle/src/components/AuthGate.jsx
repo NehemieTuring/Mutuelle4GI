@@ -3,7 +3,9 @@ import {
   getHomePath,
   getSession,
   isAuthenticated,
+  isCommissaire,
   isMembre,
+  isPresident,
   isSecretaireGeneral,
   isTresorier,
 } from '../services/auth'
@@ -40,6 +42,26 @@ export function RequireMembre() {
     return <Navigate to="/connexion" replace />
   }
   if (!isMembre()) {
+    return <Navigate to={getHomePath()} replace />
+  }
+  return <Outlet />
+}
+
+export function RequirePresident() {
+  if (!isAuthenticated()) {
+    return <Navigate to="/connexion" replace />
+  }
+  if (!isPresident()) {
+    return <Navigate to={getHomePath()} replace />
+  }
+  return <Outlet />
+}
+
+export function RequireCommissaire() {
+  if (!isAuthenticated()) {
+    return <Navigate to="/connexion" replace />
+  }
+  if (!isCommissaire()) {
     return <Navigate to={getHomePath()} replace />
   }
   return <Outlet />

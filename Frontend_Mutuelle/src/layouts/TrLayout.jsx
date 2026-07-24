@@ -1,7 +1,14 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { api } from '../services/api'
 import { getSession } from '../services/auth'
-import { IconClock, IconList, IconLogout, IconOutflow, IconLoan } from '../components/NavIcons'
+import {
+  IconClock,
+  IconList,
+  IconLoan,
+  IconLogout,
+  IconOutflow,
+  IconVault,
+} from '../components/NavIcons'
 
 function occupantLabel(session) {
   const poste = session?.user
@@ -30,6 +37,30 @@ export default function TrLayout() {
         </div>
 
         <nav className="bureau-sidebar-nav">
+          <NavLink
+            to="/tr/caisses"
+            className={({ isActive }) =>
+              `bureau-nav-item ${isActive ? 'is-active' : ''}`
+            }
+          >
+            <span className="bureau-nav-icon">
+              <IconVault size={20} />
+            </span>
+            <span>Caisses</span>
+          </NavLink>
+
+          <NavLink
+            to="/tr/flux"
+            className={({ isActive }) =>
+              `bureau-nav-item ${isActive ? 'is-active' : ''}`
+            }
+          >
+            <span className="bureau-nav-icon">
+              <IconList size={20} />
+            </span>
+            <span>Flux financiers</span>
+          </NavLink>
+
           <div className="bureau-nav-group">
             <span className="bureau-nav-group-label">Versements</span>
             <NavLink
@@ -101,6 +132,24 @@ export default function TrLayout() {
 
       <nav className="bureau-bottom-nav bureau-bottom-nav-scroll" aria-label="Navigation mobile">
         <NavLink
+          to="/tr/caisses"
+          className={({ isActive }) =>
+            `bureau-bottom-item ${isActive ? 'is-active' : ''}`
+          }
+        >
+          <IconVault />
+          <span>Caisses</span>
+        </NavLink>
+        <NavLink
+          to="/tr/flux"
+          className={({ isActive }) =>
+            `bureau-bottom-item ${isActive ? 'is-active' : ''}`
+          }
+        >
+          <IconList />
+          <span>Flux</span>
+        </NavLink>
+        <NavLink
           to="/tr/versements/en-attente"
           className={({ isActive }) =>
             `bureau-bottom-item ${isActive ? 'is-active' : ''}`
@@ -110,15 +159,6 @@ export default function TrLayout() {
           <span>Vers. attente</span>
         </NavLink>
         <NavLink
-          to="/tr/versements/tous"
-          className={({ isActive }) =>
-            `bureau-bottom-item ${isActive ? 'is-active' : ''}`
-          }
-        >
-          <IconList />
-          <span>Versements</span>
-        </NavLink>
-        <NavLink
           to="/tr/sorties/en-attente"
           className={({ isActive }) =>
             `bureau-bottom-item ${isActive ? 'is-active' : ''}`
@@ -126,15 +166,6 @@ export default function TrLayout() {
         >
           <IconOutflow />
           <span>Sort. attente</span>
-        </NavLink>
-        <NavLink
-          to="/tr/sorties/toutes"
-          className={({ isActive }) =>
-            `bureau-bottom-item ${isActive ? 'is-active' : ''}`
-          }
-        >
-          <IconList />
-          <span>Sorties</span>
         </NavLink>
         <NavLink
           to="/tr/remboursements"

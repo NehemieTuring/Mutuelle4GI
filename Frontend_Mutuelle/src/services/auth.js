@@ -66,6 +66,14 @@ export function isTresorier() {
   return getPosteIntitule() === 'TRESORIER'
 }
 
+export function isPresident() {
+  return getPosteIntitule() === 'PRESIDENT'
+}
+
+export function isCommissaire() {
+  return getPosteIntitule() === 'COMMISSAIRE_AUX_COMPTES'
+}
+
 /**
  * Route d’accueil selon le profil connecté.
  * Parcours membre : activer compte → payer inscription → espace.
@@ -76,7 +84,11 @@ export function getHomePath() {
 
   if (session.type === 'administration') {
     if (session.user?.intitule === 'SECRETAIRE_GENERAL') return '/sg/membres'
-    if (session.user?.intitule === 'TRESORIER') return '/tr/versements/en-attente'
+    if (session.user?.intitule === 'TRESORIER') return '/tr/caisses'
+    if (session.user?.intitule === 'PRESIDENT') return '/president'
+    if (session.user?.intitule === 'COMMISSAIRE_AUX_COMPTES') {
+      return '/commissaire'
+    }
     return '/espace'
   }
 
