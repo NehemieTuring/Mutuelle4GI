@@ -57,7 +57,11 @@ export default function TrCaisses() {
           <ul className="membre-list">
             <li className="membre-card">
               <div className="membre-card-meta">
-                <span>Inscription : {formatMoney(parametres.montantInscription)}</span>
+                <span>
+                  Renflouement inscription :{' '}
+                  {formatMoney(parametres.montantRenflouementInscription)}
+                </span>
+                <span>Inscription (réf.) : {formatMoney(parametres.montantInscription)}</span>
                 <span>Solidarité : {formatMoney(parametres.montantSolidarite)}</span>
                 <span>
                   Pénalité retard : {formatMoney(parametres.montantPenaliteRetard)}

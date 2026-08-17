@@ -14,21 +14,23 @@ import java.util.Optional;
 public interface MembreRepository extends JpaRepository<Membre, String> {
     Optional<Membre> findByCouriel(String couriel);
     long countByEtat(String etat);
+    long countByEtatNot(String etat);
     boolean existsByDetteGreaterThan(BigDecimal val);
 
-    /**
-     * Mise à jour en masse lors de l'ouverture d'exercice (évite la re-validation JPA
-     * sur des champs inchangés comme le téléphone).
-     */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
-            UPDATE Membre m SET
-                m.detteSolidarite = m.detteSolidarite + :partSolidarite,
-                m.detteInscription = m.detteInscription + :partInscription
+            UPDATE Membre m SET m.detteSolidarite = m.detteSolidarite + :partSolidarite
+            WHERE m.etat <> 'Inactif'
             """)
-    void appliquerPartsOuvertureExercice(
-            @Param("partSolidarite") BigDecimal partSolidarite,
-            @Param("partInscription") BigDecimal partInscription);
+    void appliquerPartSolidariteOuvertureExercice(@Param("partSolidarite") BigDecimal partSolidarite);
+
+    /** Renflouement inscription : uniquement les membres actifs (etat <> Inactif). */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            UPDATE Membre m SET m.detteInscription = m.detteInscription + :partInscription
+            WHERE m.etat <> 'Inactif'
+            """)
+    void appliquerPartInscriptionOuvertureExercice(@Param("partInscription") BigDecimal partInscription);
 
     /** Recalcule état et drapeaux de paiement à partir des dettes courantes. */
     @Modifying(clearAutomatically = true, flushAutomatically = true)

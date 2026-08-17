@@ -91,6 +91,10 @@ class ApiApplicationTests {
         // Initialisation des paramètres généraux requis
         ParametresGeneraux params = ParametresGeneraux.builder()
                 .montantInscription(new BigDecimal("50000.00"))
+                .mensualiteRenflouement(new BigDecimal("45000.00"))
+                .nbMoisRenflouement(12)
+                .complementRenflouement(new BigDecimal("60000.00"))
+                .forfaitRenflouement(new BigDecimal("150000.00"))
                 .montantSolidarite(new BigDecimal("150000.00"))
                 .tauxInteretEmprunts(new BigDecimal("0.0300"))
                 .montantPenaliteRetard(new BigDecimal("15000.00"))
@@ -173,13 +177,12 @@ class ApiApplicationTests {
         Membre membre = membreService.enregistrerMembre(request);
         ouvrirExercicePourTests();
 
-        // Payer le montant exact
-        Versement versement = versementService.demanderInscription(membre.getId(), new BigDecimal("50000.00"));
+        Versement versement = versementService.demanderInscription(membre.getId(), new BigDecimal("750000.00"));
 
         assertNotNull(versement.getId());
         assertEquals(StatutVersement.en_attente, versement.getStatut());
         assertEquals(RaisonVersement.inscription, versement.getRaison());
-        assertEquals(new BigDecimal("50000.00"), versement.getMontant());
+        assertEquals(new BigDecimal("750000.00"), versement.getMontant());
         assertEquals(membre.getId(), versement.getMembre().getId());
     }
 
@@ -196,8 +199,7 @@ class ApiApplicationTests {
         Membre membre = membreService.enregistrerMembre(request);
         ouvrirExercicePourTests();
 
-        // Demander l'inscription
-        Versement versement = versementService.demanderInscription(membre.getId(), new BigDecimal("50000.00"));
+        Versement versement = versementService.demanderInscription(membre.getId(), new BigDecimal("750000.00"));
 
         // Vérifier les versements en attente
         List<Versement> enAttente = versementService.obtenirVersementsEnAttente();
@@ -212,9 +214,9 @@ class ApiApplicationTests {
         Membre membreMisAJour = membreRepository.findById(membre.getId()).orElseThrow();
         assertTrue(membreMisAJour.getInscriptionPayee());
 
-        // La caisse des inscriptions doit avoir augmenté de 50000.00
+        // La caisse des inscriptions doit avoir augmenté de 750000.00
         ParametresGeneraux params = parametresGenerauxRepository.findBySingletonGuard((byte) 1).orElseThrow();
-        assertEquals(0, params.getCaisseInscriptions().compareTo(new BigDecimal("50000.00")));
+        assertEquals(0, params.getCaisseInscriptions().compareTo(new BigDecimal("750000.00")));
     }
 
     @Test
@@ -230,8 +232,7 @@ class ApiApplicationTests {
         Membre membre = membreService.enregistrerMembre(request);
         ouvrirExercicePourTests();
 
-        // Demander l'inscription
-        Versement versement = versementService.demanderInscription(membre.getId(), new BigDecimal("50000.00"));
+        Versement versement = versementService.demanderInscription(membre.getId(), new BigDecimal("750000.00"));
 
         // Refuser le versement
         Versement versementRefuse = versementService.refuserVersement(versement.getId());
@@ -769,17 +770,18 @@ class ApiApplicationTests {
         assertNotNull(openResp.getExercice());
         assertEquals("en cours", openResp.getExercice().getStatut());
 
-        // Puisqu'on n'a qu'un seul membre et il était "a jour", les cmax sont divisés
-        // par 1
-        // cmaxSolidarite = 150000 * 1 = 150000 -> partSolidarite = 150000
-        // cmaxInscription = 50000 * 1 = 50000 -> partInscription = 50000
+        // Inscription : (45000 × 12) + 60000 + 150000 = 750000
+        // Solidarité : 150000 × 1 − caisse 0 = 150000
         assertEquals(0, openResp.getPartSolidarite().compareTo(new BigDecimal("150000")));
-        assertEquals(0, openResp.getPartInscription().compareTo(new BigDecimal("50000")));
+        assertEquals(0, openResp.getPartInscription().compareTo(new BigDecimal("750000")));
+        assertEquals(0, openResp.getMontantRenflouementInscription().compareTo(new BigDecimal("750000")));
+        assertEquals(0, openResp.getMontantRenflouementSolidarite().compareTo(new BigDecimal("150000")));
+        assertEquals(1L, openResp.getNbMembresActifs());
 
         // Vérifier dette membre mise à jour et état passe à "non a jour"
         Membre membreApresOuverture = membreRepository.findById(membre.getId()).orElseThrow();
         assertEquals(0, membreApresOuverture.getDetteSolidarite().compareTo(new BigDecimal("150000")));
-        assertEquals(0, membreApresOuverture.getDetteInscription().compareTo(new BigDecimal("50000")));
+        assertEquals(0, membreApresOuverture.getDetteInscription().compareTo(new BigDecimal("750000")));
         assertEquals("non a jour", membreApresOuverture.getEtat());
 
         // 4. Tenter d'ouvrir un autre exercice (doit échouer)
@@ -848,6 +850,35 @@ class ApiApplicationTests {
         ExerciceCreationResponse forceOpenResp = exerciceService.ouvrirExercice(true);
         assertNotNull(forceOpenResp.getExercice());
         assertEquals("en cours", forceOpenResp.getExercice().getStatut());
+    }
+
+    @Test
+    void testRenflouementSolidariteDeduitSoldeCaisse() {
+        Membre membre = Membre.builder()
+                .nom("Nganhou")
+                .prenom("Jean")
+                .couriel("jean.nganhou.test@univ-yaounde1.cm")
+                .telephone("677222333")
+                .motDePasse("MonMot2Passe!")
+                .compteVerifie(true)
+                .detteSolidarite(BigDecimal.ZERO)
+                .detteInscription(BigDecimal.ZERO)
+                .etat("a jour")
+                .build();
+        membreRepository.save(membre);
+
+        ParametresGeneraux params = parametresGenerauxRepository.findBySingletonGuard((byte) 1).orElseThrow();
+        params.setCaisseSolidarites(new BigDecimal("40000.00"));
+        parametresGenerauxRepository.save(params);
+
+        ExerciceCreationResponse openResp = exerciceService.ouvrirExercice(false);
+
+        // cible = 150000 × 1 ; à renflouer = 150000 − 40000 = 110000
+        assertEquals(0, openResp.getMontantRenflouementSolidarite().compareTo(new BigDecimal("110000")));
+        assertEquals(0, openResp.getPartSolidarite().compareTo(new BigDecimal("110000")));
+
+        Membre apres = membreRepository.findById(membre.getId()).orElseThrow();
+        assertEquals(0, apres.getDetteSolidarite().compareTo(new BigDecimal("110000")));
     }
 
     @Test

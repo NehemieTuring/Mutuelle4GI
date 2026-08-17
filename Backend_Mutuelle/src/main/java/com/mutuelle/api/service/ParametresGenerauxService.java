@@ -20,6 +20,18 @@ public class ParametresGenerauxService {
         ParametresGeneraux existing = getParametres();
         
         existing.setMontantInscription(updated.getMontantInscription());
+        if (updated.getMensualiteRenflouement() != null) {
+            existing.setMensualiteRenflouement(updated.getMensualiteRenflouement());
+        }
+        if (updated.getNbMoisRenflouement() != null) {
+            existing.setNbMoisRenflouement(updated.getNbMoisRenflouement());
+        }
+        if (updated.getComplementRenflouement() != null) {
+            existing.setComplementRenflouement(updated.getComplementRenflouement());
+        }
+        if (updated.getForfaitRenflouement() != null) {
+            existing.setForfaitRenflouement(updated.getForfaitRenflouement());
+        }
         existing.setMontantSolidarite(updated.getMontantSolidarite());
         existing.setTauxInteretEmprunts(updated.getTauxInteretEmprunts());
         existing.setMontantPenaliteRetard(updated.getMontantPenaliteRetard());

@@ -32,6 +32,10 @@ function numberValue(value, fallback = 0) {
 
 const emptyForm = {
   montantInscription: '',
+  mensualiteRenflouement: '',
+  nbMoisRenflouement: '',
+  complementRenflouement: '',
+  forfaitRenflouement: '',
   montantSolidarite: '',
   tauxInteretEmprunts: '',
   montantPenaliteRetard: '',
@@ -43,12 +47,24 @@ function toForm(params) {
   if (!params) return emptyForm
   return {
     montantInscription: String(params.montantInscription ?? ''),
+    mensualiteRenflouement: String(params.mensualiteRenflouement ?? '45000'),
+    nbMoisRenflouement: String(params.nbMoisRenflouement ?? '12'),
+    complementRenflouement: String(params.complementRenflouement ?? '60000'),
+    forfaitRenflouement: String(params.forfaitRenflouement ?? '150000'),
     montantSolidarite: String(params.montantSolidarite ?? ''),
     tauxInteretEmprunts: String(params.tauxInteretEmprunts ?? ''),
     montantPenaliteRetard: String(params.montantPenaliteRetard ?? ''),
     facteurEmprunt: String(params.facteurEmprunt ?? ''),
     dureeMaximaleEmprunt: String(params.dureeMaximaleEmprunt ?? ''),
   }
+}
+
+function montantRenflouement(form) {
+  const mensuel = numberValue(form.mensualiteRenflouement)
+  const mois = numberValue(form.nbMoisRenflouement, 12)
+  const complement = numberValue(form.complementRenflouement)
+  const forfait = numberValue(form.forfaitRenflouement)
+  return mensuel * mois + complement + forfait
 }
 
 export default function SgParametres() {
@@ -105,6 +121,10 @@ export default function SgParametres() {
       const payload = {
         ...parametres,
         montantInscription: Number(form.montantInscription),
+        mensualiteRenflouement: Number(form.mensualiteRenflouement),
+        nbMoisRenflouement: Number(form.nbMoisRenflouement),
+        complementRenflouement: Number(form.complementRenflouement),
+        forfaitRenflouement: Number(form.forfaitRenflouement),
         montantSolidarite: Number(form.montantSolidarite),
         tauxInteretEmprunts: Number(form.tauxInteretEmprunts),
         montantPenaliteRetard: Number(form.montantPenaliteRetard),
@@ -187,14 +207,14 @@ export default function SgParametres() {
 
   const reglesResume = [
     {
-      label: 'Inscription',
-      value: formatMoney(form.montantInscription),
-      hint: 'Montant demandé à chaque membre',
+      label: 'Renflouement inscription',
+      value: formatMoney(montantRenflouement(form)),
+      hint: `(${numberValue(form.mensualiteRenflouement).toLocaleString('fr-FR')} × ${numberValue(form.nbMoisRenflouement, 12)}) + ${numberValue(form.complementRenflouement).toLocaleString('fr-FR')} + ${numberValue(form.forfaitRenflouement).toLocaleString('fr-FR')}`,
     },
     {
       label: 'Solidarité',
       value: formatMoney(form.montantSolidarite),
-      hint: 'Cotisation de solidarité',
+      hint: 'Cible caisse = montant × total membres',
     },
     {
       label: 'Taux prêt',
@@ -292,6 +312,91 @@ export default function SgParametres() {
                     required
                     disabled={submitting}
                   />
+                  <p className="sheet-hint">Référence nominale. Le renflouement à l’ouverture d’exercice utilise la formule ci-dessous.</p>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label form-label-dark" htmlFor="p-mensualite">
+                    Mensualité de renflouement (XAF)
+                  </label>
+                  <input
+                    id="p-mensualite"
+                    className="form-control form-control-light"
+                    type="number"
+                    inputMode="numeric"
+                    min="0"
+                    step="1"
+                    value={form.mensualiteRenflouement}
+                    onChange={handleChange('mensualiteRenflouement')}
+                    required
+                    disabled={submitting}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label form-label-dark" htmlFor="p-nb-mois">
+                    Nombre de mois
+                  </label>
+                  <input
+                    id="p-nb-mois"
+                    className="form-control form-control-light"
+                    type="number"
+                    inputMode="numeric"
+                    min="1"
+                    max="24"
+                    step="1"
+                    value={form.nbMoisRenflouement}
+                    onChange={handleChange('nbMoisRenflouement')}
+                    required
+                    disabled={submitting}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label form-label-dark" htmlFor="p-complement">
+                    Complément de renflouement (XAF)
+                  </label>
+                  <input
+                    id="p-complement"
+                    className="form-control form-control-light"
+                    type="number"
+                    inputMode="numeric"
+                    min="0"
+                    step="1"
+                    value={form.complementRenflouement}
+                    onChange={handleChange('complementRenflouement')}
+                    required
+                    disabled={submitting}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label form-label-dark" htmlFor="p-forfait">
+                    Forfait de renflouement (XAF)
+                  </label>
+                  <input
+                    id="p-forfait"
+                    className="form-control form-control-light"
+                    type="number"
+                    inputMode="numeric"
+                    min="0"
+                    step="1"
+                    value={form.forfaitRenflouement}
+                    onChange={handleChange('forfaitRenflouement')}
+                    required
+                    disabled={submitting}
+                  />
+                </div>
+
+                <div className="form-group settings-form-span-2">
+                  <p className="sheet-hint">
+                    Total à répartir entre les membres actifs à l’ouverture d’exercice :{' '}
+                    <strong>{formatMoney(montantRenflouement(form))}</strong>
+                    {' '}
+                    = ({formatMoney(form.mensualiteRenflouement)} × {numberValue(form.nbMoisRenflouement, 12)})
+                    {' + '}{formatMoney(form.complementRenflouement)}
+                    {' + '}{formatMoney(form.forfaitRenflouement)}.
+                  </p>
                 </div>
 
                 <div className="form-group">
@@ -310,6 +415,9 @@ export default function SgParametres() {
                     required
                     disabled={submitting}
                   />
+                  <p className="sheet-hint">
+                    À l’ouverture : (montant × total membres − solde caisse) ÷ membres actifs.
+                  </p>
                 </div>
 
                 <div className="form-group">

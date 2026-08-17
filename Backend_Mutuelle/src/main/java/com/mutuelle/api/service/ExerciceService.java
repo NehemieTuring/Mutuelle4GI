@@ -66,19 +66,39 @@ public class ExerciceService {
             throw new IllegalStateException("Aucun membre enregistré dans la mutuelle.");
         }
 
-        BigDecimal montantSolidarite = parametres.getMontantSolidarite();
-        BigDecimal montantInscription = parametres.getMontantInscription();
+        long membresActifs = membreRepository.countByEtatNot("Inactif");
+        if (membresActifs == 0) {
+            throw new IllegalStateException(
+                    "Aucun membre actif pour répartir les renflouements d'inscription et de solidarité.");
+        }
 
-        BigDecimal cmaxSolidarite = montantSolidarite.multiply(BigDecimal.valueOf(totalMembres));
-        BigDecimal cmaxInscription = montantInscription.multiply(BigDecimal.valueOf(totalMembres));
+        BigDecimal nbActifs = BigDecimal.valueOf(membresActifs);
 
-        long membresAJour = membreRepository.countByEtat("a jour");
-        long diviseur = membresAJour > 0 ? membresAJour : totalMembres;
+        // Renflouement caisse solidarités :
+        // (montant_solidarité × total membres) − solde actuel de la caisse,
+        // réparti entre les membres actifs.
+        BigDecimal cibleSolidarite = parametres.getMontantSolidarite()
+                .multiply(BigDecimal.valueOf(totalMembres));
+        BigDecimal soldeCaisseSolidarite = parametres.getCaisseSolidarites() != null
+                ? parametres.getCaisseSolidarites()
+                : BigDecimal.ZERO;
+        BigDecimal montantRenflouementSolidarite = cibleSolidarite.subtract(soldeCaisseSolidarite);
+        if (montantRenflouementSolidarite.compareTo(BigDecimal.ZERO) < 0) {
+            montantRenflouementSolidarite = BigDecimal.ZERO;
+        }
+        BigDecimal partSolidarite = montantRenflouementSolidarite.divide(nbActifs, 0, RoundingMode.CEILING);
 
-        BigDecimal partSolidarite = cmaxSolidarite.divide(BigDecimal.valueOf(diviseur), 0, RoundingMode.CEILING);
-        BigDecimal partInscription = cmaxInscription.divide(BigDecimal.valueOf(diviseur), 0, RoundingMode.CEILING);
+        // Renflouement caisse inscriptions : (mensualité × nb mois) + complément + forfait,
+        // réparti entre les membres actifs uniquement.
+        BigDecimal montantRenflouementInscription = parametres.getMontantRenflouementInscription();
+        BigDecimal partInscription = montantRenflouementInscription.divide(nbActifs, 0, RoundingMode.CEILING);
 
-        membreRepository.appliquerPartsOuvertureExercice(partSolidarite, partInscription);
+        if (partSolidarite.compareTo(BigDecimal.ZERO) > 0) {
+            membreRepository.appliquerPartSolidariteOuvertureExercice(partSolidarite);
+        }
+        if (partInscription.compareTo(BigDecimal.ZERO) > 0) {
+            membreRepository.appliquerPartInscriptionOuvertureExercice(partInscription);
+        }
         membreRepository.recalculerEtatApresOuvertureExercice();
 
         Exercice exercice = Exercice.builder()
@@ -88,13 +108,20 @@ public class ExerciceService {
                 .build();
         Exercice saved = exerciceRepository.save(exercice);
 
-        log.info("[EXERCICE] Nouvel exercice ouvert (ID: {}). Part solidarité: {}, Part inscription: {}",
-                saved.getId(), partSolidarite, partInscription);
+        log.info("[EXERCICE] Nouvel exercice ouvert (ID: {}). "
+                        + "Renflouement inscription: {} / {} actifs → part {}. "
+                        + "Renflouement solidarité: {} (cible {} − caisse {}) / {} actifs → part {}.",
+                saved.getId(),
+                montantRenflouementInscription, membresActifs, partInscription,
+                montantRenflouementSolidarite, cibleSolidarite, soldeCaisseSolidarite, membresActifs, partSolidarite);
 
         return ExerciceCreationResponse.builder()
                 .exercice(saved)
                 .partSolidarite(partSolidarite)
                 .partInscription(partInscription)
+                .montantRenflouementInscription(montantRenflouementInscription)
+                .montantRenflouementSolidarite(montantRenflouementSolidarite)
+                .nbMembresActifs(membresActifs)
                 .build();
     }
 

@@ -28,10 +28,47 @@ public class ParametresGeneraux {
     @Column(name = "montant_inscription", nullable = false, precision = 15, scale = 2)
     private BigDecimal montantInscription;
 
+    @NotNull(message = "La mensualité de renflouement est obligatoire")
+    @DecimalMin(value = "0.0", inclusive = true, message = "La mensualité de renflouement doit être positive")
+    @Column(name = "mensualite_renflouement", nullable = false, precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal mensualiteRenflouement = new BigDecimal("45000.00");
+
+    @NotNull(message = "Le nombre de mois de renflouement est obligatoire")
+    @Min(value = 1, message = "Le nombre de mois de renflouement doit être au moins 1")
+    @Max(value = 24, message = "Le nombre de mois de renflouement ne peut pas dépasser 24")
+    @Column(name = "nb_mois_renflouement", nullable = false)
+    @Builder.Default
+    private Integer nbMoisRenflouement = 12;
+
+    @NotNull(message = "Le complément de renflouement est obligatoire")
+    @DecimalMin(value = "0.0", inclusive = true, message = "Le complément de renflouement doit être positif")
+    @Column(name = "complement_renflouement", nullable = false, precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal complementRenflouement = new BigDecimal("60000.00");
+
+    @NotNull(message = "Le forfait de renflouement est obligatoire")
+    @DecimalMin(value = "0.0", inclusive = true, message = "Le forfait de renflouement doit être positif")
+    @Column(name = "forfait_renflouement", nullable = false, precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal forfaitRenflouement = new BigDecimal("150000.00");
+
     @NotNull(message = "Le montant de solidarité est obligatoire")
     @DecimalMin(value = "0.0", inclusive = true, message = "Le montant de solidarité doit être positif")
     @Column(name = "montant_solidarite", nullable = false, precision = 15, scale = 2)
     private BigDecimal montantSolidarite;
+
+    /**
+     * Montant total à renflouer dans la caisse d'inscription à l'ouverture d'exercice :
+     * (mensualité × nb mois) + complément + forfait.
+     */
+    public BigDecimal getMontantRenflouementInscription() {
+        BigDecimal mensuel = mensualiteRenflouement != null ? mensualiteRenflouement : BigDecimal.ZERO;
+        int mois = nbMoisRenflouement != null ? nbMoisRenflouement : 12;
+        BigDecimal complement = complementRenflouement != null ? complementRenflouement : BigDecimal.ZERO;
+        BigDecimal forfait = forfaitRenflouement != null ? forfaitRenflouement : BigDecimal.ZERO;
+        return mensuel.multiply(BigDecimal.valueOf(mois)).add(complement).add(forfait);
+    }
 
     @NotNull(message = "Le taux d'intérêt des emprunts est obligatoire")
     @DecimalMin(value = "0.0", inclusive = true, message = "Le taux d'intérêt doit être positif")

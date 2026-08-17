@@ -11,4 +11,7 @@ public class ExerciceCreationResponse {
     private Exercice exercice;
     private BigDecimal partSolidarite;
     private BigDecimal partInscription;
+    private BigDecimal montantRenflouementInscription;
+    private BigDecimal montantRenflouementSolidarite;
+    private Long nbMembresActifs;
 }

@@ -211,8 +211,22 @@ export default function SgExercices() {
                   Statut : <StatutBadge type="exercice" statut={lastOperation.exercice.statut} />
                 </p>
                 <p>Ouverture : {formatDate(lastOperation.exercice.dateOuverture)}</p>
-                <p>Part inscription : {formatMoney(lastOperation.partInscription)}</p>
-                <p>Part solidarité : {formatMoney(lastOperation.partSolidarite)}</p>
+                <p>
+                  Renflouement inscription :{' '}
+                  {formatMoney(lastOperation.montantRenflouementInscription)}
+                  {lastOperation.nbMembresActifs
+                    ? ` / ${lastOperation.nbMembresActifs} membre(s) actif(s)`
+                    : ''}
+                </p>
+                <p>Part inscription (par membre actif) : {formatMoney(lastOperation.partInscription)}</p>
+                <p>
+                  Renflouement solidarité :{' '}
+                  {formatMoney(lastOperation.montantRenflouementSolidarite)}
+                  {lastOperation.nbMembresActifs
+                    ? ` / ${lastOperation.nbMembresActifs} membre(s) actif(s)`
+                    : ''}
+                </p>
+                <p>Part solidarité (par membre actif) : {formatMoney(lastOperation.partSolidarite)}</p>
               </>
             ) : null}
           </div>
