@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Navigate, Outlet } from 'react-router-dom'
 import {
   getHomePath,
@@ -9,6 +10,20 @@ import {
   isSecretaireGeneral,
   isTresorier,
 } from '../services/auth'
+
+function useAuthSession() {
+  const [session, setSession] = useState(() => getSession())
+  useEffect(() => {
+    const sync = () => setSession(getSession())
+    window.addEventListener('auth-change', sync)
+    window.addEventListener('storage', sync)
+    return () => {
+      window.removeEventListener('auth-change', sync)
+      window.removeEventListener('storage', sync)
+    }
+  }, [])
+  return session
+}
 
 export function RequireAuth() {
   if (!isAuthenticated()) {
@@ -69,7 +84,7 @@ export function RequireCommissaire() {
 
 /** Redirige le membre vers l’étape obligatoire (activer / inscription / accueil). */
 export function MembreOnboardingGate({ step }) {
-  const session = getSession()
+  const session = useAuthSession()
   if (!session || session.type !== 'membre') {
     return <Navigate to={getHomePath()} replace />
   }
@@ -84,7 +99,7 @@ export function MembreOnboardingGate({ step }) {
   if (step !== target) {
     if (target === 'activer') return <Navigate to="/membre/activer" replace />
     if (target === 'inscription') return <Navigate to="/membre/inscription" replace />
-    return <Navigate to="/membre" replace />
+    return <Navigate to="/membre/epargne" replace />
   }
 
   return <Outlet />

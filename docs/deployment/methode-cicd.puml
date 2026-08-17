@@ -1,0 +1,30 @@
+@startuml methode-cicd
+skinparam backgroundColor #FAFAFA
+skinparam shadowing false
+title Methode 4 - CI/CD GitHub Actions
+
+actor Dev as "Developpeur"
+
+cloud "GitHub" as GH {
+  component "Repository\nFultang/mutuelle" as Repo
+  component "GitHub Actions" as GHA
+  component "Container Registry\nGHCR ou Docker Hub" as Registry
+}
+
+node "Serveur production" as Prod {
+  component "Deploy SSH\nou Watchtower" as Deploy
+  component "docker compose pull up" as ComposeUp
+}
+
+Dev --> Repo : git push
+Repo --> GHA : webhook
+GHA --> Registry : push image
+Registry --> Deploy : pull
+Deploy --> ComposeUp
+
+note right of GHA
+  Branche main vers production
+  Secrets SSH_KEY DB_PASSWORD
+end note
+
+@enduml

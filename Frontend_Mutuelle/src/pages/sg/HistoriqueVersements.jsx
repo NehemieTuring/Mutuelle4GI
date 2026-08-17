@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMutuelleRefresh, useMutuelleRefreshListener } from '../../hooks/useMutuelleRefresh'
 import { api } from '../../services/api'
+import StatutBadge from '../../components/StatutBadge'
 
 function formatMoney(amount) {
   return new Intl.NumberFormat('fr-FR', {
@@ -18,19 +20,6 @@ function formatDate(iso) {
     hour: '2-digit',
     minute: '2-digit',
   })
-}
-
-function statutBadge(statut) {
-  if (statut === 'accepte') return 'badge badge-success'
-  if (statut === 'refuse') return 'badge badge-danger'
-  return 'badge badge-warning'
-}
-
-function statutLabel(statut) {
-  if (statut === 'accepte') return 'Validé'
-  if (statut === 'refuse') return 'Refusé'
-  if (statut === 'en_attente') return 'En attente'
-  return statut || '—'
 }
 
 function membreName(membre) {
@@ -91,31 +80,11 @@ export default function SgHistoriqueVersements({ raison }) {
   }, [raison])
 
   useEffect(() => {
-    let alive = true
-    ;(async () => {
-      setLoading(true)
-      setError('')
-      try {
-        const data = await api.getTousVersements(raison)
-        if (!alive) return
-        const list = Array.isArray(data) ? data : []
-        list.sort(
-          (a, b) =>
-            new Date(b.dateVersement || 0).getTime() -
-            new Date(a.dateVersement || 0).getTime(),
-        )
-        setVersements(list)
-      } catch (err) {
-        if (!alive) return
-        setError(err instanceof Error ? err.message : 'Erreur de chargement')
-      } finally {
-        if (alive) setLoading(false)
-      }
-    })()
-    return () => {
-      alive = false
-    }
-  }, [raison])
+    load()
+  }, [load])
+
+  useMutuelleRefreshListener(load, 'versements')
+
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -197,7 +166,7 @@ export default function SgHistoriqueVersements({ raison }) {
                   <h2 className="membre-card-name">{membreName(v.membre)}</h2>
                   <p className="membre-card-mail">{v.membre?.couriel || '—'}</p>
                 </div>
-                <span className={statutBadge(v.statut)}>{statutLabel(v.statut)}</span>
+                <StatutBadge type="versement" statut={v.statut} />
               </div>
               <div className="versement-amount">{formatMoney(v.montant)}</div>
               <div className="membre-card-meta">

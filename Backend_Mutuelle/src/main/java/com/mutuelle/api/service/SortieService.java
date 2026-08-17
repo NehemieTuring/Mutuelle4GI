@@ -13,7 +13,9 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @Slf4j
@@ -38,14 +40,7 @@ public class SortieService {
     private PretRepository pretRepository;
 
     @Autowired
-    private ExerciceRepository exerciceRepository;
-
-    private void checkActiveExercice() {
-        if (exerciceRepository.findByStatut("en cours").isEmpty()) {
-            throw new IllegalStateException(
-                    "Aucune période d'activité (exercice) n'est ouverte. Les opérations sont temporairement indisponibles.");
-        }
-    }
+    private ExerciceService exerciceService;
 
     private String formatMontant(BigDecimal montant) {
         if (montant == null) {
@@ -127,7 +122,7 @@ public class SortieService {
 
     @Transactional
     public Sortie demanderAide(String membreId, String typeAide) {
-        checkActiveExercice();
+        Exercice exercice = exerciceService.requireExerciceEnCours();
         EligibilityResponse eligibility = verifierEligibiliteAide(membreId);
         if (!eligibility.isEligible()) {
             throw new IllegalStateException("Demande d'aide impossible. " + eligibility.getMessage());
@@ -154,6 +149,7 @@ public class SortieService {
         Sortie sortie = Sortie.builder()
                 .montant(aideParam.getMontant())
                 .membre(membre)
+                .exercice(exercice)
                 .raison("aide_" + typeAide)
                 .statut(StatutSortie.en_attente_secretaire_general)
                 .build();
@@ -225,7 +221,7 @@ public class SortieService {
 
     @Transactional
     public Sortie demanderPret(String membreId, BigDecimal montant) {
-        checkActiveExercice();
+        Exercice exercice = exerciceService.requireExerciceEnCours();
         EligibilityResponse eligibility = verifierEligibilitePret(membreId);
         if (!eligibility.isEligible()) {
             throw new IllegalStateException("Emprunt impossible. " + eligibility.getMessage());
@@ -259,6 +255,7 @@ public class SortieService {
         Sortie sortie = Sortie.builder()
                 .montant(montant)
                 .membre(membre)
+                .exercice(exercice)
                 .raison("pret")
                 .statut(StatutSortie.en_attente_secretaire_general)
                 .build();
@@ -272,7 +269,7 @@ public class SortieService {
 
     @Transactional
     public Sortie demanderRetrait(String membreId, BigDecimal montant) {
-        checkActiveExercice();
+        Exercice exercice = exerciceService.requireExerciceEnCours();
         Membre membre = membreRepository.findById(membreId)
                 .orElseThrow(() -> new IllegalArgumentException("Membre introuvable."));
 
@@ -292,6 +289,7 @@ public class SortieService {
         Sortie sortie = Sortie.builder()
                 .montant(montant)
                 .membre(membre)
+                .exercice(exercice)
                 .raison("retrait")
                 .statut(StatutSortie.en_attente_secretaire_general)
                 .build();
@@ -305,6 +303,7 @@ public class SortieService {
 
     @Transactional
     public Sortie accepterSg(String sortieId) {
+        exerciceService.requireExerciceEnCours();
         Sortie sortie = sortieRepository.findById(sortieId)
                 .orElseThrow(() -> new IllegalArgumentException("Sortie avec l'id " + sortieId + " n'existe pas"));
 
@@ -321,6 +320,7 @@ public class SortieService {
 
     @Transactional
     public Sortie refuserSg(String sortieId) {
+        exerciceService.requireExerciceEnCours();
         Sortie sortie = sortieRepository.findById(sortieId)
                 .orElseThrow(() -> new IllegalArgumentException("Sortie avec l'id " + sortieId + " n'existe pas"));
 
@@ -337,6 +337,7 @@ public class SortieService {
 
     @Transactional
     public Sortie accepterTr(String sortieId) {
+        exerciceService.requireExerciceEnCours();
         Sortie sortie = sortieRepository.findById(sortieId)
                 .orElseThrow(() -> new IllegalArgumentException("Sortie avec l'id " + sortieId + " n'existe pas"));
 
@@ -359,6 +360,7 @@ public class SortieService {
 
     @Transactional
     public Sortie refuserTr(String sortieId) {
+        exerciceService.requireExerciceEnCours();
         Sortie sortie = sortieRepository.findById(sortieId)
                 .orElseThrow(() -> new IllegalArgumentException("Sortie avec l'id " + sortieId + " n'existe pas"));
 
@@ -394,26 +396,6 @@ public class SortieService {
         LocalDateTime dateEcheance = LocalDateTime.now().plusMonths(parametres.getDureeMaximaleEmprunt());
         // Le membre rembourse uniquement le capital prêté (les intérêts sont redistribués aux épargnants).
         BigDecimal montantARembourser = montantPret;
-        Pret newPret = Pret.builder()
-                .id(java.util.UUID.randomUUID().toString())
-                .montant(montantPret)
-                .datePret(LocalDateTime.now())
-                .membre(sortie.getMembre())
-                .raison("Emprunt")
-                .montantARembourser(montantARembourser)
-                .dateEcheance(dateEcheance)
-                .statut("non rembourse")
-                .build();
-        pretRepository.save(newPret);
-        log.info("[EMPRUNT - ENREGISTREMENT] Emprunt de {} créé pour {}, à rembourser (capital): {}, échéance: {}",
-                montantPret, sortie.getMembre().getCouriel(), montantARembourser, dateEcheance);
-
-        Membre emprunteur = sortie.getMembre();
-        BigDecimal detteActuelle = emprunteur.getDette() != null ? emprunteur.getDette() : BigDecimal.ZERO;
-        emprunteur.setDette(detteActuelle.add(montantPret));
-        membreRepository.save(emprunteur);
-        log.info("[EMPRUNT - DETTE] Dette du membre {} mise à jour : {}",
-                emprunteur.getCouriel(), emprunteur.getDette());
 
         List<Membre> tousMembres = membreRepository.findAll();
         BigDecimal totalEpargneAutres = BigDecimal.ZERO;
@@ -427,21 +409,53 @@ public class SortieService {
             }
         }
 
+        Map<String, BigDecimal> listeCreatiers = new LinkedHashMap<>();
         if (totalEpargneAutres.compareTo(BigDecimal.ZERO) > 0) {
             for (Membre m : beneficiaires) {
                 BigDecimal part = m.getEpargne().divide(totalEpargneAutres, 15, RoundingMode.HALF_UP);
+                listeCreatiers.put(m.getId(), part);
+            }
+        }
+
+        Pret newPret = Pret.builder()
+                .id(java.util.UUID.randomUUID().toString())
+                .montant(montantPret)
+                .datePret(LocalDateTime.now())
+                .membre(sortie.getMembre())
+                .exercice(sortie.getExercice())
+                .raison("Emprunt")
+                .montantARembourser(montantARembourser)
+                .dateEcheance(dateEcheance)
+                .statut("non rembourse")
+                .listeCreatiers(listeCreatiers)
+                .build();
+        pretRepository.save(newPret);
+        log.info("[EMPRUNT - ENREGISTREMENT] Emprunt de {} créé pour {}, à rembourser (capital): {}, échéance: {}, créanciers: {}",
+                montantPret, sortie.getMembre().getCouriel(), montantARembourser, dateEcheance, listeCreatiers);
+
+        Membre emprunteur = sortie.getMembre();
+        BigDecimal detteActuelle = emprunteur.getDette() != null ? emprunteur.getDette() : BigDecimal.ZERO;
+        emprunteur.setDette(detteActuelle.add(montantPret));
+        membreRepository.save(emprunteur);
+        log.info("[EMPRUNT - DETTE] Dette du membre {} mise à jour : {}",
+                emprunteur.getCouriel(), emprunteur.getDette());
+
+        if (totalEpargneAutres.compareTo(BigDecimal.ZERO) > 0) {
+            for (Membre m : beneficiaires) {
+                BigDecimal part = listeCreatiers.get(m.getId());
                 BigDecimal partInteret = part.multiply(interets).setScale(2, RoundingMode.HALF_UP);
                 BigDecimal currentInteret = m.getInteret() != null ? m.getInteret() : BigDecimal.ZERO;
                 m.setInteret(currentInteret.add(partInteret));
                 membreRepository.save(m);
-                log.info("[EMPRUNT - RÉPARTITION INTÉRÊT] {} ajouté aux intérêts du membre {}",
-                        partInteret, m.getCouriel());
+                log.info("[EMPRUNT - RÉPARTITION INTÉRÊT] {} ajouté aux intérêts du membre {} (part: {})",
+                        partInteret, m.getCouriel(), part);
             }
         }
     }
 
     @Transactional
     public Sortie confirmerMembre(String sortieId) {
+        exerciceService.requireExerciceEnCours();
         Sortie sortie = sortieRepository.findById(sortieId)
                 .orElseThrow(() -> new IllegalArgumentException("Sortie avec l'id " + sortieId + " n'existe pas"));
 

@@ -1,0 +1,30 @@
+@startuml methode-bare-metal
+skinparam backgroundColor #FAFAFA
+skinparam shadowing false
+title Methode 3 - Bare metal (sans Docker)
+
+actor Admin as "Administrateur"
+
+node "Serveur Linux" as Linux {
+  package "systemd" as Systemd {
+    component "mutuelle-api.service\njava -jar app.jar" as Service
+  }
+
+  package "MySQL 8 natif" as MySQLNative {
+    database "mutuelle_db" as DB
+  }
+
+  component "Nginx" as Nginx2
+}
+
+Admin --> Service : systemctl
+Admin --> MySQLNative : mysql backup
+Nginx2 --> Service : localhost:8080
+Service --> DB : localhost:3306
+
+note bottom of Linux
+  Plus de controle, moins de surcharge Docker
+  Mises a jour Java/MySQL manuelles
+end note
+
+@enduml

@@ -50,4 +50,17 @@ public class RemboursementController {
                     .build());
         }
     }
+
+    @PostMapping("/{id}/refuser")
+    public ResponseEntity<?> refuserRemboursement(@PathVariable String id) {
+        try {
+            Remboursement remboursement = remboursementService.refuserRemboursement(id);
+            return ResponseEntity.ok(remboursement);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ResponseEntity.badRequest().body(LoginResponse.builder()
+                    .success(false)
+                    .message(e.getMessage())
+                    .build());
+        }
+    }
 }

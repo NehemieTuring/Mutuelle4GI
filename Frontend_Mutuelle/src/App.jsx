@@ -30,11 +30,11 @@ import SgParametres from './pages/sg/Parametres'
 import SgExercices from './pages/sg/Exercices'
 import ActiverCompte from './pages/membre/ActiverCompte'
 import PayerInscription from './pages/membre/PayerInscription'
-import MembreAccueil from './pages/membre/Accueil'
 import MembreEpargne from './pages/membre/Epargne'
 import MembreAide from './pages/membre/Aide'
 import MembreEmprunt from './pages/membre/Emprunt'
 import MembreRetrait from './pages/membre/Retrait'
+import MembreMonCompte from './pages/membre/MonCompte'
 import TrVersements from './pages/tr/Versements'
 import TrSorties from './pages/tr/Sorties'
 import TrRemboursements from './pages/tr/Remboursements'
@@ -44,12 +44,20 @@ import PresidentAccueil from './pages/president/Accueil'
 import PresidentCaisses from './pages/president/Caisses'
 import PresidentMembres from './pages/president/Membres'
 import PresidentEmprunts from './pages/president/Emprunts'
+import PresidentFlux from './pages/president/Flux'
 import CommissaireAccueil from './pages/commissaire/Accueil'
 import CommissaireCaisses from './pages/commissaire/Caisses'
 import CommissaireFlux from './pages/commissaire/Flux'
+import CommissaireMembres from './pages/commissaire/Membres'
+import CommissaireVersements from './pages/commissaire/Versements'
+import CommissaireSorties from './pages/commissaire/Sorties'
+import CommissaireEmprunts from './pages/commissaire/Emprunts'
+import MutuelleRefreshProvider from './components/MutuelleRefreshProvider'
+import BureauMonCompte from './pages/bureau/MonCompte'
 
 function App() {
   return (
+    <MutuelleRefreshProvider>
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Landing />} />
@@ -77,6 +85,7 @@ function App() {
             <Route path="sorties" element={<Navigate to="en-attente" replace />} />
             <Route path="parametres" element={<SgParametres />} />
             <Route path="exercices" element={<SgExercices />} />
+            <Route path="compte" element={<BureauMonCompte />} />
           </Route>
         </Route>
         <Route element={<RequireTresorier />}>
@@ -92,6 +101,7 @@ function App() {
             <Route path="sorties/:sousOnglet" element={<TrSorties />} />
             <Route path="sorties" element={<Navigate to="en-attente" replace />} />
             <Route path="remboursements" element={<TrRemboursements />} />
+            <Route path="compte" element={<BureauMonCompte />} />
           </Route>
         </Route>
         <Route element={<RequirePresident />}>
@@ -99,14 +109,28 @@ function App() {
             <Route index element={<PresidentAccueil />} />
             <Route path="caisses" element={<PresidentCaisses />} />
             <Route path="membres" element={<PresidentMembres />} />
+            <Route path="flux" element={<PresidentFlux />} />
+            <Route path="epargnes" element={<SgEpargnes />} />
+            <Route path="inscriptions" element={<SgInscriptions />} />
+            <Route path="solidarites" element={<SgSolidarites />} />
             <Route path="emprunts" element={<PresidentEmprunts />} />
+            <Route path="sorties" element={<CommissaireSorties />} />
+            <Route path="compte" element={<BureauMonCompte />} />
           </Route>
         </Route>
         <Route element={<RequireCommissaire />}>
           <Route path="/commissaire" element={<CommissaireLayout />}>
             <Route index element={<CommissaireAccueil />} />
             <Route path="caisses" element={<CommissaireCaisses />} />
+            <Route path="membres" element={<CommissaireMembres />} />
             <Route path="flux" element={<CommissaireFlux />} />
+            <Route path="epargnes" element={<SgEpargnes />} />
+            <Route path="inscriptions" element={<SgInscriptions />} />
+            <Route path="solidarites" element={<SgSolidarites />} />
+            <Route path="emprunts" element={<CommissaireEmprunts />} />
+            <Route path="sorties" element={<CommissaireSorties />} />
+            <Route path="versements" element={<CommissaireVersements />} />
+            <Route path="compte" element={<BureauMonCompte />} />
           </Route>
         </Route>
         <Route element={<RequireMembre />}>
@@ -118,17 +142,19 @@ function App() {
           </Route>
           <Route element={<MembreOnboardingGate step="home" />}>
             <Route path="/membre" element={<MembreLayout />}>
-              <Route index element={<MembreAccueil />} />
+              <Route index element={<Navigate to="epargne" replace />} />
               <Route path="epargne" element={<MembreEpargne />} />
               <Route path="retrait" element={<MembreRetrait />} />
               <Route path="aide" element={<MembreAide />} />
               <Route path="emprunt" element={<MembreEmprunt />} />
+              <Route path="compte" element={<MembreMonCompte />} />
             </Route>
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
+    </MutuelleRefreshProvider>
   )
 }
 

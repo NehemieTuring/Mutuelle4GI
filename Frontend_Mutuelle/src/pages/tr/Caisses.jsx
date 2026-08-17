@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useMutuelleRefresh } from '../../hooks/useMutuelleRefresh'
 import { api } from '../../services/api'
 import CaissesOverview from '../../components/CaissesOverview'
 
@@ -28,9 +29,8 @@ export default function TrCaisses() {
     }
   }
 
-  useEffect(() => {
-    load()
-  }, [])
+  useMutuelleRefresh(load, null)
+
 
   return (
     <div className="sg-page">

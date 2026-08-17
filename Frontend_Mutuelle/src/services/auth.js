@@ -38,6 +38,17 @@ export function updateMembreSession(user) {
   })
 }
 
+/** Met à jour la session administration (poste + membre occupant) */
+export function updateAdminSession(poste) {
+  const session = getSession()
+  if (!session || session.type !== 'administration') return
+  setSession({
+    ...session,
+    user: poste,
+    loggedAt: new Date().toISOString(),
+  })
+}
+
 export function clearSession() {
   localStorage.removeItem(SESSION_KEY)
   window.dispatchEvent(new Event('auth-change'))
@@ -95,5 +106,5 @@ export function getHomePath() {
   const membre = session.user
   if (!membre?.compteVerifie) return '/membre/activer'
   if (!membre?.inscriptionPayee) return '/membre/inscription'
-  return '/membre'
+  return '/membre/epargne'
 }

@@ -56,7 +56,8 @@ public class MembreController {
     @PostMapping("/{id}/modifier-mot-de-passe")
     public ResponseEntity<?> modifierMotDePasse(@PathVariable String id, @Valid @RequestBody ModifierMotDePasseRequest request) {
         try {
-            Membre updated = membreService.modifierMotDePasse(id, request.getNouveauMotDePasse());
+            Membre updated = membreService.modifierMotDePasse(
+                    id, request.getNouveauMotDePasse(), request.getAncienMotDePasse());
             return ResponseEntity.ok(LoginResponse.builder()
                     .success(true)
                     .message("Mot de passe modifié avec succès. Votre compte est maintenant vérifié.")

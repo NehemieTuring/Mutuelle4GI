@@ -40,6 +40,10 @@ public class Membre {
     private String couriel;
 
     @NotBlank(message = "Le téléphone est obligatoire")
+    @Pattern(
+            regexp = "^(?:\\+?237)?[26]\\d{8}$",
+            message = "Le téléphone doit être un numéro camerounais valide (mobile 6XXXXXXXX ou Camtel 2XXXXXXXX)"
+    )
     @Column(name = "telephone", nullable = false, length = 50)
     private String telephone;
 
@@ -65,11 +69,11 @@ public class Membre {
 
     @Column(name = "dette_solidarite", nullable = false, precision = 15, scale = 2)
     @Builder.Default
-    private BigDecimal detteSolidarite = new BigDecimal("150000.00");
+    private BigDecimal detteSolidarite = BigDecimal.ZERO;
 
     @Column(name = "dette_inscription", nullable = false, precision = 15, scale = 2)
     @Builder.Default
-    private BigDecimal detteInscription = new BigDecimal("50000.00");
+    private BigDecimal detteInscription = BigDecimal.ZERO;
 
     @Column(name = "epargne", nullable = false, precision = 15, scale = 2)
     @Builder.Default
@@ -85,7 +89,7 @@ public class Membre {
 
     @Column(name = "etat", nullable = false, length = 50)
     @Builder.Default
-    private String etat = "non a jour";
+    private String etat = "a jour";
 
     @CreationTimestamp
     @Column(name = "date_creation", nullable = false, updatable = false)

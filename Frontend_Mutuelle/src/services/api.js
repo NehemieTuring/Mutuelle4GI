@@ -139,14 +139,20 @@ export const api = {
   },
 
   /**
-   * Active le compte membre en changeant le mot de passe temporaire.
+   * Change le mot de passe membre.
+   * Si le compte est déjà activé, `ancienMotDePasse` est obligatoire.
    * @param {string} membreId
    * @param {string} nouveauMotDePasse
+   * @param {string} [ancienMotDePasse]
    */
-  async modifierMotDePasse(membreId, nouveauMotDePasse) {
+  async modifierMotDePasse(membreId, nouveauMotDePasse, ancienMotDePasse) {
+    const body = { nouveauMotDePasse }
+    if (ancienMotDePasse != null && ancienMotDePasse !== '') {
+      body.ancienMotDePasse = ancienMotDePasse
+    }
     const data = await request(`/api/membres/${membreId}/modifier-mot-de-passe`, {
       method: 'POST',
-      body: JSON.stringify({ nouveauMotDePasse }),
+      body: JSON.stringify(body),
     })
     if (data?.data) {
       updateMembreSession(data.data)
@@ -206,9 +212,58 @@ export const api = {
     return request('/api/exercices/cloturer', { method: 'POST' })
   },
 
+  /** @returns {Promise<object|null>} Exercice en cours ou null (204). */
+  async getExerciceEnCours() {
+    const response = await fetch(apiUrl('/api/exercices/en-cours'), {
+      headers: { 'Content-Type': 'application/json' },
+    })
+    if (response.status === 204) return null
+    const raw = await response.text()
+    if (!raw) {
+      if (response.ok) return null
+      throw new Error('Exercice indisponible')
+    }
+    let data
+    try {
+      data = JSON.parse(raw)
+    } catch {
+      throw new Error('Réponse serveur invalide')
+    }
+    if (!response.ok) {
+      const message =
+        (typeof data === 'string' && data) ||
+        data?.message ||
+        data?.error ||
+        'Impossible de charger l’exercice'
+      throw new Error(message)
+    }
+    return data
+  },
+
+  /** @returns {Promise<object[]>} */
+  async getExercices() {
+    return request('/api/exercices')
+  },
+
   /** @returns {Promise<object[]>} */
   async getPostes() {
     return request('/api/postes')
+  },
+
+  /** @returns {Promise<object>} */
+  async getPoste(id) {
+    return request(`/api/postes/${id}`)
+  },
+
+  /**
+   * @param {string} id
+   * @param {object} payload
+   */
+  async updatePoste(id, payload) {
+    return request(`/api/postes/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    })
   },
 
   /** @param {string} membreId */
@@ -413,6 +468,37 @@ export const api = {
   /** @param {string} id */
   async validerRemboursement(id) {
     return request(`/api/remboursements/${id}/valider`, { method: 'POST' })
+  },
+
+  /** @param {string} id */
+  async refuserRemboursement(id) {
+    return request(`/api/remboursements/${id}/refuser`, { method: 'POST' })
+  },
+
+  /**
+   * @param {{ typeAide: string, montant: number }} payload
+   */
+  async createAideParametre(payload) {
+    return request('/api/aides-parametres', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+
+  /**
+   * @param {string} id
+   * @param {{ typeAide: string, montant: number }} payload
+   */
+  async updateAideParametre(id, payload) {
+    return request(`/api/aides-parametres/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    })
+  },
+
+  /** @param {string} id */
+  async deleteAideParametre(id) {
+    return request(`/api/aides-parametres/${id}`, { method: 'DELETE' })
   },
 
   /** @param {string} pretId */

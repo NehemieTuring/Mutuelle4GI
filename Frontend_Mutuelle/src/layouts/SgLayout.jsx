@@ -1,15 +1,22 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { useEffect } from 'react'
 import { api } from '../services/api'
 import { getSession } from '../services/auth'
+import ExerciceBanner, { ExerciceStatusChip } from '../components/ExerciceBanner'
+import BureauNavGroup from '../components/bureau/BureauNavGroup'
+import { useMutuelleRefreshListener } from '../hooks/useMutuelleRefresh'
+import { useExerciceEnCours } from '../hooks/useExerciceEnCours'
 import {
   IconBadge,
   IconCalendar,
   IconHeart,
+  IconList,
   IconLoan,
   IconLogout,
   IconOutflow,
   IconPiggy,
   IconSettings,
+  IconUser,
   IconUsers,
   IconVault,
 } from '../components/NavIcons'
@@ -26,6 +33,16 @@ function occupantLabel(session) {
 export default function SgLayout() {
   const session = getSession()
   const navigate = useNavigate()
+  const location = useLocation()
+  const { exercice, exerciceActif, loading, refresh } = useExerciceEnCours()
+  const onExercicesPage = location.pathname.startsWith('/sg/exercices')
+
+  useMutuelleRefreshListener(refresh, 'exercices')
+  useEffect(() => {
+    const onChange = () => refresh()
+    window.addEventListener('exercice-change', onChange)
+    return () => window.removeEventListener('exercice-change', onChange)
+  }, [refresh])
 
   const handleLogout = () => {
     api.logout()
@@ -65,8 +82,16 @@ export default function SgLayout() {
             <span>Caisses</span>
           </NavLink>
 
-          <div className="bureau-nav-group">
-            <span className="bureau-nav-group-label">Historiques</span>
+          <BureauNavGroup
+            label="Historiques"
+            icon={<IconList size={20} />}
+            pathPrefixes={[
+              '/sg/epargnes',
+              '/sg/inscriptions',
+              '/sg/solidarites',
+              '/sg/emprunts',
+            ]}
+          >
             <NavLink
               to="/sg/epargnes"
               className={({ isActive }) =>
@@ -99,10 +124,13 @@ export default function SgLayout() {
             >
               Emprunts
             </NavLink>
-          </div>
+          </BureauNavGroup>
 
-          <div className="bureau-nav-group">
-            <span className="bureau-nav-group-label">Sorties</span>
+          <BureauNavGroup
+            label="Sorties"
+            icon={<IconOutflow size={20} />}
+            pathPrefixes={['/sg/sorties']}
+          >
             <NavLink
               to="/sg/sorties/en-attente"
               className={({ isActive }) =>
@@ -119,7 +147,7 @@ export default function SgLayout() {
             >
               Toutes
             </NavLink>
-          </div>
+          </BureauNavGroup>
 
           <NavLink
             to="/sg/parametres"
@@ -144,6 +172,18 @@ export default function SgLayout() {
             </span>
             <span>Exercices</span>
           </NavLink>
+
+          <NavLink
+            to="/sg/compte"
+            className={({ isActive }) =>
+              `bureau-nav-item ${isActive ? 'is-active' : ''}`
+            }
+          >
+            <span className="bureau-nav-icon">
+              <IconUser size={20} />
+            </span>
+            <span>Mon compte</span>
+          </NavLink>
         </nav>
 
         <div className="bureau-sidebar-footer">
@@ -159,7 +199,19 @@ export default function SgLayout() {
       </aside>
 
       <div className="bureau-main">
-        <Outlet />
+        {!onExercicesPage ? (
+          <ExerciceBanner
+            exercice={exercice}
+            loading={loading}
+            sgLink="/sg/exercices"
+            className="bureau-exercice-banner"
+          />
+        ) : (
+          <div className="bureau-exercice-chip-wrap">
+            <ExerciceStatusChip exercice={exercice} loading={loading} />
+          </div>
+        )}
+        <Outlet context={{ exercice, exerciceActif, exerciceLoading: loading }} />
       </div>
 
       <nav className="bureau-bottom-nav bureau-bottom-nav-scroll" aria-label="Navigation mobile">
@@ -243,6 +295,15 @@ export default function SgLayout() {
         >
           <IconCalendar />
           <span>Exercices</span>
+        </NavLink>
+        <NavLink
+          to="/sg/compte"
+          className={({ isActive }) =>
+            `bureau-bottom-item ${isActive ? 'is-active' : ''}`
+          }
+        >
+          <IconUser />
+          <span>Compte</span>
         </NavLink>
         <button type="button" className="bureau-bottom-item" onClick={handleLogout}>
           <IconLogout />

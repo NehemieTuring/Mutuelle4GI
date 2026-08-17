@@ -1,0 +1,43 @@
+@startuml architecture-globale
+skinparam backgroundColor #FAFAFA
+skinparam componentStyle rectangle
+skinparam shadowing false
+title Architecture globale - Mutuelle ENSPY (production)
+
+actor "Membre / Bureau" as User
+
+cloud "Internet" as Internet
+
+node "Serveur VPS / Cloud" as VPS {
+  component "Nginx\n(reverse proxy + TLS)" as Nginx
+
+  folder "Frontend (build statique)" as FE {
+    [index.html]
+    [assets JS/CSS]
+    [PWA manifest + SW]
+  }
+
+  node "Docker / JVM" as Docker {
+    component "Spring Boot API\nport 8080" as API
+    database "MySQL 8\nport 3306" as DB
+  }
+
+  component "Adminer\n(optionnel)" as Adminer
+}
+
+User --> Internet : HTTPS
+Internet --> Nginx
+Nginx --> FE : GET / assets
+Nginx --> API : proxy /api/*
+API --> DB : JDBC
+Adminer ..> DB : admin SQL interne
+
+note right of Nginx
+  Recommande en production
+  - Un seul domaine
+  - VITE_API_BASE_URL vide
+  - Certificat Let's Encrypt
+  - SSE : proxy_buffering off
+end note
+
+@enduml

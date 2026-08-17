@@ -2,7 +2,6 @@ package com.mutuelle.api.service;
 
 import com.mutuelle.api.dto.ExerciceCreationResponse;
 import com.mutuelle.api.entity.Exercice;
-import com.mutuelle.api.entity.Membre;
 import com.mutuelle.api.entity.ParametresGeneraux;
 import com.mutuelle.api.repository.ExerciceRepository;
 import com.mutuelle.api.repository.MembreRepository;
@@ -16,12 +15,16 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
 @Transactional
 @Slf4j
 public class ExerciceService {
+
+    public static final String MESSAGE_AUCUN_EXERCICE =
+            "Aucun exercice en cours. Opération impossible.";
 
     @Autowired
     private ExerciceRepository exerciceRepository;
@@ -34,6 +37,19 @@ public class ExerciceService {
 
     @Autowired
     private ParametresGenerauxService parametresGenerauxService;
+
+    public Optional<Exercice> getExerciceEnCours() {
+        return exerciceRepository.findByStatut("en cours");
+    }
+
+    public Exercice requireExerciceEnCours() {
+        return getExerciceEnCours()
+                .orElseThrow(() -> new IllegalStateException(MESSAGE_AUCUN_EXERCICE));
+    }
+
+    public List<Exercice> listerExercices() {
+        return exerciceRepository.findAllByOrderByDateOuvertureDesc();
+    }
 
     public ExerciceCreationResponse ouvrirExercice(boolean force) {
         if (exerciceRepository.findByStatut("en cours").isPresent()) {
@@ -62,35 +78,8 @@ public class ExerciceService {
         BigDecimal partSolidarite = cmaxSolidarite.divide(BigDecimal.valueOf(diviseur), 0, RoundingMode.CEILING);
         BigDecimal partInscription = cmaxInscription.divide(BigDecimal.valueOf(diviseur), 0, RoundingMode.CEILING);
 
-        List<Membre> membres = membreRepository.findAll();
-        for (Membre membre : membres) {
-            // Update solidarite
-            BigDecimal dsActuelle = membre.getDetteSolidarite() != null ? membre.getDetteSolidarite() : BigDecimal.ZERO;
-            BigDecimal dsNouvelle = dsActuelle.add(partSolidarite);
-            membre.setDetteSolidarite(dsNouvelle);
-            if (dsNouvelle.compareTo(BigDecimal.ZERO) > 0) {
-                membre.setSolidaritePayee(false);
-            }
-
-            // Update inscription
-            BigDecimal diActuelle = membre.getDetteInscription() != null ? membre.getDetteInscription() : BigDecimal.ZERO;
-            BigDecimal diNouvelle = diActuelle.add(partInscription);
-            membre.setDetteInscription(diNouvelle);
-            if (diNouvelle.compareTo(BigDecimal.ZERO) > 0) {
-                membre.setInscriptionPayee(false);
-            }
-
-            // Update member state
-            if (dsNouvelle.compareTo(new BigDecimal("250000.00")) >= 0) {
-                membre.setEtat("Inactif");
-            } else if (dsNouvelle.compareTo(BigDecimal.ZERO) > 0) {
-                membre.setEtat("non a jour");
-            } else {
-                membre.setEtat("a jour");
-            }
-
-            membreRepository.save(membre);
-        }
+        membreRepository.appliquerPartsOuvertureExercice(partSolidarite, partInscription);
+        membreRepository.recalculerEtatApresOuvertureExercice();
 
         Exercice exercice = Exercice.builder()
                 .id(UUID.randomUUID().toString())

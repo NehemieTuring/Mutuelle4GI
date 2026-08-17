@@ -4,7 +4,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const backendHost = env.VITE_BACKEND_HOST || '10.38.90.187'
+  const backendHost = env.VITE_BACKEND_HOST || 'localhost'
   const backendPort = env.VITE_BACKEND_PORT || '8081'
   const backendUrl = `http://${backendHost}:${backendPort}`
 
@@ -47,7 +47,6 @@ export default defineConfig(({ mode }) => {
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-          globIgnores: ['**/hero-mutuelle*.png'],
           maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
           navigateFallback: '/index.html',
           navigateFallbackDenylist: [/^\/api/],
@@ -79,27 +78,47 @@ export default defineConfig(({ mode }) => {
           ],
         },
         devOptions: {
-          enabled: true,
+          enabled: false,
         },
       }),
     ],
     server: {
       host: '0.0.0.0',
       port: 5173,
+      strictPort: true,
+      allowedHosts: true,
       proxy: {
         '/api': {
           target: backendUrl,
           changeOrigin: true,
+          configure: (proxy) => {
+            proxy.on('proxyRes', (proxyRes, req) => {
+              if (req.url?.includes('/events/stream')) {
+                proxyRes.headers['cache-control'] = 'no-cache'
+                proxyRes.headers['connection'] = 'keep-alive'
+              }
+            })
+          },
         },
       },
     },
     preview: {
       host: '0.0.0.0',
       port: 5173,
+      strictPort: true,
+      allowedHosts: true,
       proxy: {
         '/api': {
           target: backendUrl,
           changeOrigin: true,
+          configure: (proxy) => {
+            proxy.on('proxyRes', (proxyRes, req) => {
+              if (req.url?.includes('/events/stream')) {
+                proxyRes.headers['cache-control'] = 'no-cache'
+                proxyRes.headers['connection'] = 'keep-alive'
+              }
+            })
+          },
         },
       },
     },

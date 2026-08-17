@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import { NavLink } from 'react-router-dom'
+import { useMutuelleRefresh, useMutuelleRefreshListener } from '../../hooks/useMutuelleRefresh'
+import { NavLink, useOutletContext } from 'react-router-dom'
 import { api } from '../../services/api'
+import StatutBadge from '../../components/StatutBadge'
+import ConfirmValidationSheet from '../../components/ConfirmValidationSheet'
 
 function formatMoney(amount) {
   return new Intl.NumberFormat('fr-FR', {
@@ -28,12 +31,14 @@ function membreName(membre) {
 }
 
 export default function TrRemboursements() {
+  const { exerciceActif } = useOutletContext() || {}
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [actionId, setActionId] = useState(null)
   const [actionError, setActionError] = useState('')
   const [toast, setToast] = useState('')
+  const [confirm, setConfirm] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -56,43 +61,45 @@ export default function TrRemboursements() {
     }
   }, [])
 
-  useEffect(() => {
-    let alive = true
-    ;(async () => {
-      setLoading(true)
-      setError('')
-      try {
-        const data = await api.getRemboursementsEnAttente()
-        if (!alive) return
-        const list = Array.isArray(data) ? data : []
-        list.sort(
-          (a, b) =>
-            new Date(b.dateRemboursement || 0).getTime() -
-            new Date(a.dateRemboursement || 0).getTime(),
-        )
-        setItems(list)
-      } catch (err) {
-        if (!alive) return
-        setError(err instanceof Error ? err.message : 'Chargement impossible')
-        setItems([])
-      } finally {
-        if (alive) setLoading(false)
-      }
-    })()
-    return () => {
-      alive = false
-    }
-  }, [])
+  useMutuelleRefresh(load, 'remboursements')
 
-  const handleValider = async (id) => {
+
+  const askConfirm = (item) => {
+    setActionError('')
+    setConfirm({ item })
+  }
+
+  const closeConfirm = () => {
+    if (actionId) return
+    setConfirm(null)
+  }
+
+  const runConfirm = async () => {
+    if (!confirm?.item) return
+    const id = confirm.item.id
     setActionId(id)
     setActionError('')
     try {
       await api.validerRemboursement(id)
       setToast('Remboursement validé.')
+      setConfirm(null)
       await load()
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Validation impossible')
+    } finally {
+      setActionId(null)
+    }
+  }
+
+  const handleRefuser = async (id) => {
+    setActionId(id)
+    setActionError('')
+    try {
+      await api.refuserRemboursement(id)
+      setToast('Remboursement refusé.')
+      await load()
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Refus impossible')
     } finally {
       setActionId(null)
     }
@@ -174,7 +181,7 @@ export default function TrRemboursements() {
                       {membre?.couriel ? ` · ${membre.couriel}` : ''}
                     </p>
                   </div>
-                  <span className="badge badge-warning">Attente TR</span>
+                  <StatutBadge type="remboursement" statut={r.statut} />
                 </div>
                 <div className="membre-card-meta">
                   <span>Demandé le {formatDate(r.dateRemboursement)}</span>
@@ -184,14 +191,22 @@ export default function TrRemboursements() {
                   </span>
                   <span>Échéance : {formatDate(pret?.dateEcheance)}</span>
                 </div>
-                <div style={{ marginTop: 12 }}>
+                <div className="action-row" style={{ marginTop: 12 }}>
                   <button
                     type="button"
                     className="btn btn-accent btn-touch"
-                    disabled={actionId === r.id}
-                    onClick={() => handleValider(r.id)}
+                    disabled={actionId === r.id || !exerciceActif}
+                    onClick={() => askConfirm(r)}
                   >
-                    {actionId === r.id ? 'Validation…' : 'Valider'}
+                    {actionId === r.id ? '…' : 'Valider'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost-dark btn-touch"
+                    disabled={actionId === r.id || !exerciceActif}
+                    onClick={() => handleRefuser(r.id)}
+                  >
+                    Refuser
                   </button>
                 </div>
               </li>
@@ -199,6 +214,28 @@ export default function TrRemboursements() {
           })}
         </ul>
       )}
+
+      <ConfirmValidationSheet
+        open={Boolean(confirm)}
+        title="Confirmer le remboursement"
+        lead="Confirmez que vous avez bien reçu ce remboursement de prêt."
+        montant={confirm?.item?.montant}
+        details={
+          confirm
+            ? [
+                {
+                  label: 'Membre',
+                  value: membreName(confirm.item?.pret?.membre),
+                },
+                { label: 'Type', value: 'Remboursement de prêt' },
+              ]
+            : []
+        }
+        confirmLabel="Oui, je confirme"
+        busy={Boolean(actionId)}
+        onConfirm={runConfirm}
+        onCancel={closeConfirm}
+      />
     </div>
   )
 }

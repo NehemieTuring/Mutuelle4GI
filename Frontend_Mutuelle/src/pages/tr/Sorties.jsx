@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { NavLink, useParams } from 'react-router-dom'
+import { useMutuelleRefresh, useMutuelleRefreshListener } from '../../hooks/useMutuelleRefresh'
+import { NavLink, useOutletContext, useParams } from 'react-router-dom'
 import { api } from '../../services/api'
+import StatutBadge from '../../components/StatutBadge'
+import ConfirmValidationSheet from '../../components/ConfirmValidationSheet'
 
 const STATUS_FILTERS = [
   { id: 'TOUS', label: 'Tous' },
@@ -56,27 +59,9 @@ function raisonLabel(raison) {
   return raison
 }
 
-function statutLabel(s) {
-  const map = {
-    en_attente_secretaire_general: 'Attente SG',
-    en_attente_tresorier: 'Attente trésorier',
-    accepte_par_sg_accepte_par_tr: 'Validée (SG+TR)',
-    accepte_par_sg_refuse_par_tr: 'Refusée (TR)',
-    refuse_par_sg_refuse_par_tr: 'Refusée (SG)',
-    refuse_par_sg_accepte_par_tr: 'Refusée (SG)',
-    recue_par_membre: 'Reçue par le membre',
-  }
-  return map[s] || s || '—'
-}
-
-function statutBadge(s) {
-  if (s === 'recue_par_membre' || VALIDATED.has(s)) return 'badge badge-success'
-  if (REFUSED.has(s)) return 'badge badge-danger'
-  return 'badge badge-warning'
-}
-
 export default function TrSorties() {
   const { sousOnglet } = useParams()
+  const { exerciceActif } = useOutletContext() || {}
   const mode = sousOnglet === 'toutes' ? 'toutes' : 'en-attente'
 
   const [sorties, setSorties] = useState([])
@@ -86,6 +71,7 @@ export default function TrSorties() {
   const [search, setSearch] = useState('')
   const [actionId, setActionId] = useState(null)
   const [actionError, setActionError] = useState('')
+  const [confirm, setConfirm] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -111,34 +97,11 @@ export default function TrSorties() {
   }, [mode])
 
   useEffect(() => {
-    let alive = true
-    ;(async () => {
-      setLoading(true)
-      setError('')
-      try {
-        const data =
-          mode === 'en-attente'
-            ? await api.getSortiesEnAttenteTr()
-            : await api.getToutesSorties()
-        if (!alive) return
-        const list = Array.isArray(data) ? data : []
-        list.sort(
-          (a, b) =>
-            new Date(b.dateSortie || 0).getTime() -
-            new Date(a.dateSortie || 0).getTime(),
-        )
-        setSorties(list)
-      } catch (err) {
-        if (!alive) return
-        setError(err instanceof Error ? err.message : 'Erreur de chargement')
-      } finally {
-        if (alive) setLoading(false)
-      }
-    })()
-    return () => {
-      alive = false
-    }
-  }, [mode])
+    load()
+  }, [load])
+
+  useMutuelleRefreshListener(load, 'sorties')
+
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -163,11 +126,24 @@ export default function TrSorties() {
     })
   }, [sorties, search, statusFilter, mode])
 
-  const handleAccept = async (id) => {
+  const askConfirm = (item) => {
+    setActionError('')
+    setConfirm({ item })
+  }
+
+  const closeConfirm = () => {
+    if (actionId) return
+    setConfirm(null)
+  }
+
+  const runConfirm = async () => {
+    if (!confirm?.item) return
+    const id = confirm.item.id
     setActionId(id)
     setActionError('')
     try {
       await api.accepterSortieTr(id)
+      setConfirm(null)
       await load()
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Acceptation impossible')
@@ -288,7 +264,7 @@ export default function TrSorties() {
                   <h2 className="membre-card-name">{membreName(s.membre)}</h2>
                   <p className="membre-card-mail">{s.membre?.couriel || '—'}</p>
                 </div>
-                <span className={statutBadge(s.statut)}>{statutLabel(s.statut)}</span>
+                <StatutBadge type="sortie" statut={s.statut} />
               </div>
 
               <div className="versement-amount">{formatMoney(s.montant)}</div>
@@ -303,15 +279,15 @@ export default function TrSorties() {
                   <button
                     type="button"
                     className="btn btn-accent btn-touch"
-                    disabled={actionId === s.id}
-                    onClick={() => handleAccept(s.id)}
+                    disabled={actionId === s.id || !exerciceActif}
+                    onClick={() => askConfirm(s)}
                   >
                     {actionId === s.id ? '…' : 'Valider'}
                   </button>
                   <button
                     type="button"
                     className="btn btn-danger-outline btn-touch"
-                    disabled={actionId === s.id}
+                    disabled={actionId === s.id || !exerciceActif}
                     onClick={() => handleRefuse(s.id)}
                   >
                     Refuser
@@ -322,6 +298,25 @@ export default function TrSorties() {
           ))}
         </ul>
       )}
+
+      <ConfirmValidationSheet
+        open={Boolean(confirm)}
+        title="Confirmer la sortie"
+        lead="Confirmez que vous validez le décaissement de cette somme au membre."
+        montant={confirm?.item?.montant}
+        details={
+          confirm
+            ? [
+                { label: 'Membre', value: membreName(confirm.item?.membre) },
+                { label: 'Type', value: raisonLabel(confirm.item?.raison) },
+              ]
+            : []
+        }
+        confirmLabel="Oui, je confirme"
+        busy={Boolean(actionId)}
+        onConfirm={runConfirm}
+        onCancel={closeConfirm}
+      />
     </div>
   )
 }

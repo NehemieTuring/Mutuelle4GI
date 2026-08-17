@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useMutuelleRefresh, useMutuelleRefreshListener } from '../../hooks/useMutuelleRefresh'
 import { api } from '../../services/api'
+import StatutBadge from '../../components/StatutBadge'
 
 function formatMoney(amount) {
   return new Intl.NumberFormat('fr-FR', {
@@ -28,24 +30,21 @@ export default function CommissaireEmprunts() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    let alive = true
-    ;(async () => {
-      try {
-        const data = await api.getTousPrets()
-        if (!alive) return
-        setItems(Array.isArray(data) ? data : [])
-      } catch (err) {
-        if (!alive) return
-        setError(err instanceof Error ? err.message : 'Chargement impossible')
-      } finally {
-        if (alive) setLoading(false)
-      }
-    })()
-    return () => {
-      alive = false
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const data = await api.getTousPrets()
+      setItems(Array.isArray(data) ? data : [])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Chargement impossible')
+    } finally {
+      setLoading(false)
     }
   }, [])
+
+  useMutuelleRefresh(load, 'prets')
 
   return (
     <div className="sg-page">
@@ -79,15 +78,7 @@ export default function CommissaireEmprunts() {
                   <h2 className="membre-card-name">{membreName(p.membre)}</h2>
                   <p className="membre-card-mail">{formatDate(p.datePret)}</p>
                 </div>
-                <span
-                  className={
-                    p.statut === 'rembourse'
-                      ? 'badge badge-success'
-                      : 'badge badge-warning'
-                  }
-                >
-                  {p.statut}
-                </span>
+                <StatutBadge type="pret" statut={p.statut} />
               </div>
               <div className="versement-amount">{formatMoney(p.montant)}</div>
               <div className="membre-card-meta">

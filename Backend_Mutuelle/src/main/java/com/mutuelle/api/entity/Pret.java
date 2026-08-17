@@ -3,8 +3,13 @@ package com.mutuelle.api.entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 
 @Entity
 @Table(name = "prets")
@@ -32,6 +37,11 @@ public class Pret {
     private Membre membre;
 
     @NotNull
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "exercice_id", nullable = false)
+    private Exercice exercice;
+
+    @NotNull
     @Column(name = "raison", nullable = false)
     private String raison;
 
@@ -50,4 +60,13 @@ public class Pret {
 
     @Column(name = "date_remboursement")
     private LocalDateTime dateRemboursement;
+
+    /**
+     * Parts de chaque créancier (épargnant) dans la répartition des intérêts du prêt.
+     * Clé : id membre ; valeur : part (0–1, ex. 0.35 = 35 %).
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "liste_creatiers", columnDefinition = "json")
+    @Builder.Default
+    private Map<String, BigDecimal> listeCreatiers = new HashMap<>();
 }

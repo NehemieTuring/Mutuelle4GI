@@ -1,0 +1,36 @@
+@startuml methode-nginx-prod
+skinparam backgroundColor #FAFAFA
+skinparam shadowing false
+title Methode 2 - Production recommandee (Nginx + Docker Compose)
+
+actor User as "Utilisateur PWA"
+
+rectangle "Serveur Ubuntu 22.04+\n2 vCPU 4-8 Go RAM" as Server {
+  component "Certbot\nLet's Encrypt" as Certbot
+
+  component "Nginx" as Nginx
+
+  folder "/var/www/mutuelle\ndist Vite build" as Static
+
+  package "docker compose" as DC {
+    component "mutuelle-api\n8081" as API
+    database "mutuelle-db\n3306 interne" as DB
+  }
+
+  folder "/opt/mutuelle/backups" as Backup
+}
+
+User --> Nginx : https://mutuelle.example.com
+Nginx --> Static : GET /
+Nginx --> API : /api/*
+Certbot ..> Nginx : renouvellement SSL
+API --> DB
+DB --> Backup : mysqldump cron
+
+note right of Nginx
+  /api/events/stream
+  proxy_buffering off
+  proxy_read_timeout 86400s
+end note
+
+@enduml

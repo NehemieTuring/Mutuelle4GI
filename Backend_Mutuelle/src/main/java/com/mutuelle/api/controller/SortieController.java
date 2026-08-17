@@ -87,12 +87,6 @@ public class SortieController {
         }
     }
 
-    @GetMapping("/aides-parametres")
-    public ResponseEntity<List<ParametresAide>> obtenirRaisonsAidesExistantes() {
-        List<ParametresAide> reasons = sortieService.obtenirRaisonsAidesExistantes();
-        return ResponseEntity.ok(reasons);
-    }
-
     @PostMapping("/sorties/demande-aide")
     public ResponseEntity<?> demanderAide(@Valid @RequestBody DemandeAideRequest request) {
         try {

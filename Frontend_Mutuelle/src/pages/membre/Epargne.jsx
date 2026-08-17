@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react'
+import { useMutuelleRefreshListener } from '../../hooks/useMutuelleRefresh'
 import { useLocation, useOutletContext } from 'react-router-dom'
 import { api } from '../../services/api'
+import StatutBadge from '../../components/StatutBadge'
 import { getSession } from '../../services/auth'
+import {
+  EPARGNE_MIN,
+  EPARGNE_STEP,
+  validateEpargneAmount,
+} from '../../utils/validation'
 
 function formatMoney(amount) {
   return new Intl.NumberFormat('fr-FR', {
@@ -22,22 +29,9 @@ function formatDate(iso) {
   })
 }
 
-function statutLabel(s) {
-  if (s === 'accepte') return 'Validé'
-  if (s === 'refuse') return 'Refusé'
-  if (s === 'en_attente') return 'En attente'
-  return s || '—'
-}
-
-function statutClass(s) {
-  if (s === 'accepte') return 'badge badge-success'
-  if (s === 'refuse') return 'badge badge-danger'
-  return 'badge badge-warning'
-}
-
 export default function MembreEpargne() {
   const location = useLocation()
-  const { membre: ctxMembre, setMembre: setCtxMembre, refreshMembre } =
+  const { membre: ctxMembre, setMembre: setCtxMembre, refreshMembre, exerciceActif } =
     useOutletContext() || {}
   const session = getSession()
   const membreId = session?.user?.id
@@ -79,41 +73,19 @@ export default function MembreEpargne() {
   }
 
   useEffect(() => {
-    let alive = true
-    ;(async () => {
-      if (!membreId) {
-        setLoading(false)
-        return
-      }
-      try {
-        const [fresh, list, soldeTotalRes] = await Promise.all([
-          api.getMembre(membreId),
-          api.getVersementsMembre(membreId, 'epargne'),
-          api.getSoldeTotal(membreId).catch(() => null),
-        ])
-        if (!alive) return
-        setMembre(fresh)
-        setCtxMembre?.(fresh)
-        setSolde(soldeTotalRes)
-        setHistorique(Array.isArray(list) ? list : [])
-      } catch (err) {
-        if (!alive) return
-        setError(err instanceof Error ? err.message : 'Chargement impossible')
-      } finally {
-        if (alive) setLoading(false)
-      }
-    })()
-    return () => {
-      alive = false
-    }
+    load()
   }, [membreId, setCtxMembre])
+
+  useMutuelleRefreshListener(load, ['membres', 'versements'])
+
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setSheetError('')
     const value = Number(amount)
-    if (!Number.isFinite(value) || value <= 0) {
-      setSheetError('Indiquez un montant valide supérieur à 0.')
+    const amountError = validateEpargneAmount(value)
+    if (amountError) {
+      setSheetError(amountError)
       return
     }
     setSubmitting(true)
@@ -141,13 +113,14 @@ export default function MembreEpargne() {
         <button
           type="button"
           className="btn btn-accent btn-touch"
+          disabled={!exerciceActif}
           onClick={() => {
             setSheetError('')
             setAmount('')
             setSheetOpen(true)
           }}
         >
-          Épargner
+          {exerciceActif ? 'Épargner' : 'Exercice non ouvert'}
         </button>
       </header>
 
@@ -176,8 +149,8 @@ export default function MembreEpargne() {
         </li>
         <li className="membre-dash-item">
           <div>
-            <p className="membre-dash-item-label">Intérêts</p>
-            <p className="membre-dash-item-hint">Part des intérêts d’emprunts</p>
+            <p className="membre-dash-item-label">Intérêts cumulés</p>
+            <p className="membre-dash-item-hint">Part des intérêts d’emprunts liés à votre épargne</p>
           </div>
           <p className="membre-dash-item-value">{formatMoney(interet)}</p>
         </li>
@@ -202,7 +175,7 @@ export default function MembreEpargne() {
                   <h2 className="membre-card-name">{formatMoney(v.montant)}</h2>
                   <p className="membre-card-mail">{formatDate(v.dateVersement)}</p>
                 </div>
-                <span className={statutClass(v.statut)}>{statutLabel(v.statut)}</span>
+                <StatutBadge type="versement" statut={v.statut} />
               </div>
               {v.description ? (
                 <div className="membre-card-meta">
@@ -239,7 +212,8 @@ export default function MembreEpargne() {
             </header>
             <form className="sheet-form" onSubmit={handleSubmit}>
               <p className="sheet-hint">
-                Le montant sera crédité après validation du trésorier.
+                Minimum {EPARGNE_MIN} XAF, par pas de {EPARGNE_STEP} (ex. 500, 525,
+                550…). Crédité après validation du trésorier.
               </p>
               <div className="form-group">
                 <label className="form-label form-label-dark" htmlFor="ep-montant">
@@ -250,11 +224,13 @@ export default function MembreEpargne() {
                   className="form-control form-control-light"
                   type="number"
                   inputMode="numeric"
-                  min="1"
+                  min={EPARGNE_MIN}
+                  step={EPARGNE_STEP}
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   required
                   disabled={submitting}
+                  placeholder={String(EPARGNE_MIN)}
                 />
               </div>
               {sheetError ? (
@@ -265,7 +241,7 @@ export default function MembreEpargne() {
               <button
                 type="submit"
                 className="btn btn-accent btn-block btn-touch"
-                disabled={submitting}
+                disabled={submitting || !exerciceActif}
               >
                 {submitting ? 'Envoi…' : 'Confirmer'}
               </button>

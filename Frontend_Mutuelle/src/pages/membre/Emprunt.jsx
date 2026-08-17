@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
+import { useMutuelleRefreshListener } from '../../hooks/useMutuelleRefresh'
 import { useOutletContext } from 'react-router-dom'
 import { api } from '../../services/api'
+import StatutBadge from '../../components/StatutBadge'
 import { getSession } from '../../services/auth'
 
 function formatMoney(amount) {
@@ -18,25 +20,6 @@ function formatDate(iso) {
     month: 'short',
     year: 'numeric',
   })
-}
-
-function statutSortieLabel(s) {
-  const map = {
-    en_attente_secretaire_general: 'Attente SG',
-    en_attente_tresorier: 'Attente trésorier',
-    accepte_par_sg_accepte_par_tr: 'Accordé',
-    accepte_par_sg_refuse_par_tr: 'Refusée (TR)',
-    refuse_par_sg_refuse_par_tr: 'Refusée',
-    refuse_par_sg_accepte_par_tr: 'Refusée (SG)',
-    recue_par_membre: 'Reçue',
-  }
-  return map[s] || s || '—'
-}
-
-function statutRemboursementLabel(s) {
-  if (s === 'valide_tr') return 'Validé'
-  if (s === 'en_attente_tr') return 'Attente trésorier'
-  return s || '—'
 }
 
 /** Demandes d’emprunt encore en cours de validation (pas encore accordées / refusées). */
@@ -68,7 +51,7 @@ function restePayable(pret, remboursements, detteMembre) {
 }
 
 export default function MembreEmprunt() {
-  const { membre: ctxMembre, setMembre: setCtxMembre, refreshMembre } =
+  const { membre: ctxMembre, setMembre: setCtxMembre, refreshMembre, exerciceActif } =
     useOutletContext() || {}
   const membreId = getSession()?.user?.id
 
@@ -151,42 +134,11 @@ export default function MembreEmprunt() {
   }
 
   useEffect(() => {
-    let alive = true
-    ;(async () => {
-      if (!membreId) {
-        setLoading(false)
-        return
-      }
-      try {
-        const [fresh, sorties, pretsList, elig, params] = await Promise.all([
-          api.getMembre(membreId),
-          api.getSortiesMembre(membreId),
-          api.getPretsMembre(membreId),
-          api.getEligiblePret(membreId).catch(() => null),
-          api.getParametres().catch(() => null),
-        ])
-        if (!alive) return
-        setMembre(fresh)
-        setCtxMembre?.(fresh)
-        applyPretEligibility(elig, params)
-        const demandesPret = sortDemandes(
-          (Array.isArray(sorties) ? sorties : []).filter(isDemandePretEnCours),
-        )
-        setDemandes(demandesPret)
-        const list = Array.isArray(pretsList) ? pretsList : []
-        setPrets(list)
-        await loadRemboursements(list)
-      } catch (err) {
-        if (!alive) return
-        setError(err instanceof Error ? err.message : 'Chargement impossible')
-      } finally {
-        if (alive) setLoading(false)
-      }
-    })()
-    return () => {
-      alive = false
-    }
+    load()
   }, [membreId, setCtxMembre])
+
+  useMutuelleRefreshListener(load, ['membres', 'sorties', 'prets', 'remboursements', 'parametres'])
+
 
   const openEmpruntSheet = () => {
     setSheetError('')
@@ -296,9 +248,10 @@ export default function MembreEmprunt() {
         <button
           type="button"
           className="btn btn-accent btn-touch"
+          disabled={!exerciceActif}
           onClick={openEmpruntSheet}
         >
-          Emprunter
+          {exerciceActif ? 'Emprunter' : 'Exercice non ouvert'}
         </button>
       </header>
 
@@ -343,9 +296,7 @@ export default function MembreEmprunt() {
                       <h2 className="membre-card-name">{formatMoney(d.montant)}</h2>
                       <p className="membre-card-mail">{formatDate(d.dateSortie)}</p>
                     </div>
-                    <span className="badge badge-warning">
-                      {statutSortieLabel(d.statut)}
-                    </span>
+                    <StatutBadge type="sortie" statut={d.statut} />
                   </div>
                 </li>
               ))}
@@ -378,15 +329,7 @@ export default function MembreEmprunt() {
                           {formatMoney(p.montantARembourser)}
                         </p>
                       </div>
-                      <span
-                        className={
-                          p.statut === 'rembourse'
-                            ? 'badge badge-success'
-                            : 'badge badge-warning'
-                        }
-                      >
-                        {p.statut === 'rembourse' ? 'Remboursé' : 'Non remboursé'}
-                      </span>
+                      <StatutBadge type="pret" statut={p.statut} />
                     </div>
                     <div className="membre-card-meta">
                       <span>Échéance : {formatDate(p.dateEcheance)}</span>
@@ -416,7 +359,7 @@ export default function MembreEmprunt() {
                           .map((r) => (
                             <li key={r.id}>
                               {formatMoney(r.montant)} · {formatDate(r.dateRemboursement)} ·{' '}
-                              {statutRemboursementLabel(r.statut)}
+                              <StatutBadge type="remboursement" statut={r.statut} />
                             </li>
                           ))}
                       </ul>
@@ -426,6 +369,7 @@ export default function MembreEmprunt() {
                         <button
                           type="button"
                           className="btn btn-primary btn-touch"
+                          disabled={!exerciceActif}
                           onClick={() => openRembourserSheet(p)}
                         >
                           Rembourser
@@ -522,7 +466,7 @@ export default function MembreEmprunt() {
                 <button
                   type="submit"
                   className="btn btn-accent btn-block btn-touch"
-                  disabled={submitting}
+                  disabled={submitting || !exerciceActif}
                 >
                   {submitting ? 'Envoi…' : 'Soumettre la demande'}
                 </button>
@@ -591,7 +535,7 @@ export default function MembreEmprunt() {
               <button
                 type="submit"
                 className="btn btn-accent btn-block btn-touch"
-                disabled={submitting || maxRemboursement <= 0}
+                disabled={submitting || maxRemboursement <= 0 || !exerciceActif}
               >
                 {submitting ? 'Envoi…' : 'Soumettre le remboursement'}
               </button>

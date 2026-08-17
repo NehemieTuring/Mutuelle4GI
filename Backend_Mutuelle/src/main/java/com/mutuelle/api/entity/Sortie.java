@@ -37,6 +37,10 @@ public class Sortie {
     @JoinColumn(name = "membre_id", nullable = false)
     private Membre membre;
 
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "exercice_id", nullable = false)
+    private Exercice exercice;
+
     @NotBlank(message = "La raison de la sortie est obligatoire")
     @Column(name = "raison", nullable = false)
     private String raison;

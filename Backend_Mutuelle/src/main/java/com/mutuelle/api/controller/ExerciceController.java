@@ -7,12 +7,27 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/exercices")
+@CrossOrigin(origins = "*")
 public class ExerciceController {
 
     @Autowired
     private ExerciceService exerciceService;
+
+    @GetMapping("/en-cours")
+    public ResponseEntity<Exercice> getExerciceEnCours() {
+        return exerciceService.getExerciceEnCours()
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.noContent().build());
+    }
+
+    @GetMapping
+    public ResponseEntity<List<Exercice>> listerExercices() {
+        return ResponseEntity.ok(exerciceService.listerExercices());
+    }
 
     @PostMapping("/ouvrir")
     public ResponseEntity<?> ouvrirExercice() {

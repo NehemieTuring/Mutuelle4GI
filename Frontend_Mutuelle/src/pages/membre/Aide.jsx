@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
+import { useMutuelleRefreshListener } from '../../hooks/useMutuelleRefresh'
 import { useOutletContext } from 'react-router-dom'
 import { api } from '../../services/api'
+import StatutBadge from '../../components/StatutBadge'
+import ConfirmValidationSheet from '../../components/ConfirmValidationSheet'
 import { getSession } from '../../services/auth'
 
 function formatMoney(amount) {
@@ -20,21 +23,8 @@ function formatDate(iso) {
   })
 }
 
-function statutLabel(s) {
-  const map = {
-    en_attente_secretaire_general: 'Attente SG',
-    en_attente_tresorier: 'Attente trésorier',
-    accepte_par_sg_accepte_par_tr: 'Acceptée',
-    accepte_par_sg_refuse_par_tr: 'Refusée (TR)',
-    refuse_par_sg_refuse_par_tr: 'Refusée',
-    refuse_par_sg_accepte_par_tr: 'Refusée (SG)',
-    recue_par_membre: 'Reçue',
-  }
-  return map[s] || s || '—'
-}
-
 export default function MembreAide() {
-  const { refreshMembre } = useOutletContext() || {}
+  const { refreshMembre, exerciceActif } = useOutletContext() || {}
   const membreId = getSession()?.user?.id
 
   const [aides, setAides] = useState([])
@@ -48,6 +38,7 @@ export default function MembreAide() {
   const [sheetError, setSheetError] = useState('')
   const [toast, setToast] = useState('')
   const [confirmingId, setConfirmingId] = useState(null)
+  const [confirmItem, setConfirmItem] = useState(null)
 
   const isEligible = eligibility?.eligible === true
   const eligibilityKnown = eligibility != null
@@ -79,12 +70,19 @@ export default function MembreAide() {
     }
   }
 
-  const handleConfirm = async (sortieId) => {
-    setConfirmingId(sortieId)
+  const askConfirmReception = (item) => {
+    setError('')
+    setConfirmItem(item)
+  }
+
+  const handleConfirm = async () => {
+    if (!confirmItem) return
+    setConfirmingId(confirmItem.id)
     setError('')
     try {
-      await api.confirmerSortie(sortieId)
+      await api.confirmerSortie(confirmItem.id)
       setToast('Réception de l’aide confirmée.')
+      setConfirmItem(null)
       await load()
       await refreshMembre?.()
     } catch (err) {
@@ -95,41 +93,11 @@ export default function MembreAide() {
   }
 
   useEffect(() => {
-    let alive = true
-    ;(async () => {
-      if (!membreId) {
-        setLoading(false)
-        return
-      }
-      try {
-        const [sorties, params, elig] = await Promise.all([
-          api.getSortiesMembre(membreId),
-          api.getAidesParametres(),
-          api.getEligibleAide(membreId).catch(() => null),
-        ])
-        if (!alive) return
-        const list = (Array.isArray(sorties) ? sorties : []).filter((s) =>
-          String(s.raison || '').startsWith('aide_'),
-        )
-        list.sort(
-          (a, b) =>
-            new Date(b.dateSortie || 0).getTime() -
-            new Date(a.dateSortie || 0).getTime(),
-        )
-        setAides(list)
-        setTypes(Array.isArray(params) ? params : [])
-        setEligibility(elig)
-      } catch (err) {
-        if (!alive) return
-        setError(err instanceof Error ? err.message : 'Chargement impossible')
-      } finally {
-        if (alive) setLoading(false)
-      }
-    })()
-    return () => {
-      alive = false
-    }
+    load()
   }, [membreId])
+
+  useMutuelleRefreshListener(load, ['sorties', 'parametres'])
+
 
   const selectedType = types.find((t) => t.typeAide === typeAide)
 
@@ -164,13 +132,14 @@ export default function MembreAide() {
         <button
           type="button"
           className="btn btn-accent btn-touch"
+          disabled={!exerciceActif}
           onClick={() => {
             setSheetError('')
             setTypeAide(types[0]?.typeAide || '')
             setSheetOpen(true)
           }}
         >
-          Demander
+          {exerciceActif ? 'Demander' : 'Exercice non ouvert'}
         </button>
       </header>
 
@@ -206,7 +175,7 @@ export default function MembreAide() {
                     </h2>
                     <p className="membre-card-mail">{formatDate(a.dateSortie)}</p>
                   </div>
-                  <span className="badge badge-warning">{statutLabel(a.statut)}</span>
+                  <StatutBadge type="sortie" statut={a.statut} />
                 </div>
                 <div className="versement-amount">{formatMoney(a.montant)}</div>
                 {canConfirm ? (
@@ -214,8 +183,8 @@ export default function MembreAide() {
                     type="button"
                     className="btn btn-accent btn-block btn-touch"
                     style={{ marginTop: 12 }}
-                    disabled={confirmingId === a.id}
-                    onClick={() => handleConfirm(a.id)}
+                    disabled={confirmingId === a.id || !exerciceActif}
+                    onClick={() => askConfirmReception(a)}
                   >
                     {confirmingId === a.id
                       ? 'Confirmation…'
@@ -321,7 +290,7 @@ export default function MembreAide() {
                 <button
                   type="submit"
                   className="btn btn-accent btn-block btn-touch"
-                  disabled={submitting || !typeAide}
+                  disabled={submitting || !typeAide || !exerciceActif}
                 >
                   {submitting ? 'Envoi…' : 'Soumettre la demande'}
                 </button>
@@ -330,6 +299,22 @@ export default function MembreAide() {
           </div>
         </div>
       ) : null}
+
+      <ConfirmValidationSheet
+        open={Boolean(confirmItem)}
+        title="Confirmer la réception"
+        lead="Confirmez que vous avez bien reçu cette aide pour le montant indiqué."
+        montant={confirmItem?.montant}
+        details={
+          confirmItem
+            ? [{ label: 'Type', value: String(confirmItem.raison || '').replace(/^aide_/, 'Aide · ') }]
+            : []
+        }
+        confirmLabel="Oui, j’ai reçu"
+        busy={Boolean(confirmingId)}
+        onConfirm={handleConfirm}
+        onCancel={() => !confirmingId && setConfirmItem(null)}
+      />
     </div>
   )
 }

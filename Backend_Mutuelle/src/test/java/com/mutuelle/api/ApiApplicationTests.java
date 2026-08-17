@@ -75,6 +75,8 @@ class ApiApplicationTests {
     @Autowired
     private ExerciceService exerciceService;
 
+    private Exercice exerciceEnCours;
+
     @BeforeEach
     void setUp() {
         remboursementRepository.deleteAll();
@@ -107,14 +109,13 @@ class ApiApplicationTests {
                 .save(ParametresAide.builder().typeAide("maladie").montant(new BigDecimal("100000.00")).build());
         parametresAideRepository
                 .save(ParametresAide.builder().typeAide("mariage").montant(new BigDecimal("50000.00")).build());
+    }
 
-        // Seeding an open exercise by default so that other tests work
-        Exercice defaultExercice = Exercice.builder()
-                .id(UUID.randomUUID().toString())
-                .dateOuverture(LocalDateTime.now())
-                .statut("en cours")
-                .build();
-        exerciceRepository.save(defaultExercice);
+    /** Ouvre un exercice et attribue les dettes aux membres déjà enregistrés. */
+    private Exercice ouvrirExercicePourTests() {
+        ExerciceCreationResponse response = exerciceService.ouvrirExercice(false);
+        exerciceEnCours = response.getExercice();
+        return exerciceEnCours;
     }
 
     @Test
@@ -151,6 +152,7 @@ class ApiApplicationTests {
                 .build();
 
         Membre membre = membreService.enregistrerMembre(request);
+        ouvrirExercicePourTests();
 
         // Tenter de payer 40000 au lieu de 50000 doit lancer une exception
         assertThrows(IllegalArgumentException.class, () -> {
@@ -169,6 +171,7 @@ class ApiApplicationTests {
                 .build();
 
         Membre membre = membreService.enregistrerMembre(request);
+        ouvrirExercicePourTests();
 
         // Payer le montant exact
         Versement versement = versementService.demanderInscription(membre.getId(), new BigDecimal("50000.00"));
@@ -191,6 +194,7 @@ class ApiApplicationTests {
                 .build();
 
         Membre membre = membreService.enregistrerMembre(request);
+        ouvrirExercicePourTests();
 
         // Demander l'inscription
         Versement versement = versementService.demanderInscription(membre.getId(), new BigDecimal("50000.00"));
@@ -224,6 +228,7 @@ class ApiApplicationTests {
                 .build();
 
         Membre membre = membreService.enregistrerMembre(request);
+        ouvrirExercicePourTests();
 
         // Demander l'inscription
         Versement versement = versementService.demanderInscription(membre.getId(), new BigDecimal("50000.00"));
@@ -253,23 +258,26 @@ class ApiApplicationTests {
                 .build();
 
         Membre membre = membreService.enregistrerMembre(request);
+        ouvrirExercicePourTests();
 
-        // Au départ, sa dette de solidarité est de 150000.00
+        // Après ouverture d'exercice, sa dette de solidarité est de 150000.00
+        membre = membreRepository.findById(membre.getId()).orElseThrow();
+        final String membreId = membre.getId();
         assertEquals(0, membre.getDetteSolidarite().compareTo(new BigDecimal("150000.00")));
         assertFalse(membre.getSolidaritePayee());
 
         // Tenter de demander un versement supérieur à sa dette
         assertThrows(IllegalArgumentException.class, () -> {
-            versementService.demanderSolidarite(membre.getId(), new BigDecimal("160000.00"));
+            versementService.demanderSolidarite(membreId, new BigDecimal("160000.00"));
         });
 
         // Tenter de demander un versement négatif
         assertThrows(IllegalArgumentException.class, () -> {
-            versementService.demanderSolidarite(membre.getId(), new BigDecimal("-50.00"));
+            versementService.demanderSolidarite(membreId, new BigDecimal("-50.00"));
         });
 
         // Demander un montant valide inférieur au requis (ex: 50000.00)
-        Versement versement = versementService.demanderSolidarite(membre.getId(), new BigDecimal("50000.00"));
+        Versement versement = versementService.demanderSolidarite(membreId, new BigDecimal("50000.00"));
         assertNotNull(versement.getId());
         assertEquals(StatutVersement.en_attente, versement.getStatut());
         assertEquals(RaisonVersement.solidarite, versement.getRaison());
@@ -287,6 +295,7 @@ class ApiApplicationTests {
                 .build();
 
         Membre membre = membreService.enregistrerMembre(request);
+        ouvrirExercicePourTests();
 
         // Demander un premier paiement partiel de solidarité
         Versement v1 = versementService.demanderSolidarite(membre.getId(), new BigDecimal("50000.00"));
@@ -324,6 +333,7 @@ class ApiApplicationTests {
                 .build();
 
         Membre membre = membreService.enregistrerMembre(request);
+        ouvrirExercicePourTests();
 
         // Au départ, l'épargne est de 0
         assertEquals(0, membre.getEpargne().compareTo(BigDecimal.ZERO));
@@ -368,9 +378,8 @@ class ApiApplicationTests {
 
         Membre membre = membreService.enregistrerMembre(request);
 
-        // Par défaut, dette_solidarite = 150000.00 (< 250000.00 et > 0) -> etat = "non
-        // a jour"
-        assertEquals("non a jour", membre.getEtat());
+        // Sans dette, le membre est « a jour »
+        assertEquals("a jour", membre.getEtat());
 
         // Mettre dette_solidarite >= 250000.00
         membre.setDetteSolidarite(new BigDecimal("250000.00"));
@@ -399,6 +408,7 @@ class ApiApplicationTests {
                 .build();
 
         Membre membre = membreService.enregistrerMembre(request);
+        ouvrirExercicePourTests();
 
         // 1. Devrait être non éligible au début
         EligibilityResponse eligibilityStart = sortieService.verifierEligibiliteAide(membre.getId());
@@ -486,6 +496,8 @@ class ApiApplicationTests {
         Membre membrePaul = membreService.enregistrerMembre(req3);
         membrePaul.setEpargne(new BigDecimal("10000.00"));
         membreRepository.save(membrePaul);
+
+        ouvrirExercicePourTests();
 
         // 1. Devrait être non éligible au prêt au début (dettes non nulles, inscription
         // non payée)
@@ -579,7 +591,7 @@ class ApiApplicationTests {
         // remboursé
         EligibilityResponse eligibilityApres = sortieService.verifierEligibilitePret(membreAline.getId());
         assertFalse(eligibilityApres.isEligible());
-        assertTrue(eligibilityApres.getMessage().contains("Le membre a un emprunt non remboursé"));
+        assertTrue(eligibilityApres.getMessage().contains("emprunt non remboursé"));
     }
 
     @Test
@@ -595,6 +607,7 @@ class ApiApplicationTests {
         membre.setEpargne(new BigDecimal("20000.00"));
         membre.setInteret(new BigDecimal("5000.00"));
         membreRepository.save(membre);
+        ouvrirExercicePourTests();
 
         // 1. Vérifier solde total
         SoldeTotalResponse soldeStart = sortieService.obtenirSoldeTotal(membre.getId());
@@ -659,8 +672,11 @@ class ApiApplicationTests {
                 .inscriptionPayee(true)
                 .build();
         Membre membre = membreService.enregistrerMembre(request);
+        ouvrirExercicePourTests();
 
-        // Payer la solidarité pour être éligible à l'emprunt
+        // Rendre le membre éligible à l'emprunt
+        membre = membreRepository.findById(membre.getId()).orElseThrow();
+        membre.setInscriptionPayee(true);
         membre.setSolidaritePayee(true);
         membre.setDetteSolidarite(BigDecimal.ZERO);
         membre.setDetteInscription(BigDecimal.ZERO);
@@ -728,12 +744,7 @@ class ApiApplicationTests {
 
     @Test
     void testExerciceWorkflow() {
-        // 1. Clôturer l'exercice par défaut
-        exerciceService.cloturerExercice();
-        assertTrue(exerciceRepository.findByStatut("en cours").isEmpty());
-
-        // 2. Tenter de créer un membre et faire un versement (doit échouer car aucun
-        // exercice n'est en cours)
+        // 1. Tenter de faire un versement sans exercice ouvert (doit échouer)
         Membre membre = Membre.builder()
                 .nom("Kengne")
                 .prenom("Gaston")
@@ -752,8 +763,9 @@ class ApiApplicationTests {
             versementService.demanderEpargne(membre.getId(), new BigDecimal("5000.00"));
         });
 
-        // 3. Ouvrir un nouvel exercice
+        // 2. Ouvrir un nouvel exercice
         ExerciceCreationResponse openResp = exerciceService.ouvrirExercice(false);
+        exerciceEnCours = openResp.getExercice();
         assertNotNull(openResp.getExercice());
         assertEquals("en cours", openResp.getExercice().getStatut());
 
@@ -821,6 +833,7 @@ class ApiApplicationTests {
                 .datePret(LocalDateTime.now())
                 .dateEcheance(LocalDateTime.now().plusMonths(3))
                 .membre(membre)
+                .exercice(exerciceEnCours)
                 .raison("pret")
                 .statut("non rembourse")
                 .build();
@@ -856,6 +869,7 @@ class ApiApplicationTests {
                 .etat("a jour")
                 .build();
         membre = membreRepository.save(membre);
+        ouvrirExercicePourTests();
 
         // Mettre à jour la caisse d'épargnes générale pour refléter l'épargne du membre
         ParametresGeneraux params = parametresGenerauxRepository.findAll().get(0);
@@ -870,6 +884,7 @@ class ApiApplicationTests {
                 .datePret(LocalDateTime.now().minusMonths(4))
                 .dateEcheance(LocalDateTime.now().minusDays(1)) // hier
                 .membre(membre)
+                .exercice(exerciceEnCours)
                 .raison("pret")
                 .statut("non rembourse")
                 .build();
@@ -883,6 +898,7 @@ class ApiApplicationTests {
                 .datePret(LocalDateTime.now())
                 .dateEcheance(LocalDateTime.now().plusMonths(3)) // dans 3 mois
                 .membre(membre)
+                .exercice(exerciceEnCours)
                 .raison("pret")
                 .statut("non rembourse")
                 .build();

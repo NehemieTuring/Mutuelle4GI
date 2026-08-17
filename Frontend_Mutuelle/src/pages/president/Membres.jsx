@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useMutuelleRefresh } from '../../hooks/useMutuelleRefresh'
 import { api } from '../../services/api'
+import MembreCard from '../../components/MembreCard'
 
 const ETAT_FILTERS = [
   { id: 'TOUS', label: 'Tous' },
@@ -7,27 +9,6 @@ const ETAT_FILTERS = [
   { id: 'non a jour', label: 'Non à jour' },
   { id: 'Inactif', label: 'Inactif' },
 ]
-
-function etatBadgeClass(etat) {
-  if (etat === 'a jour') return 'badge badge-success'
-  if (etat === 'Inactif') return 'badge badge-danger'
-  return 'badge badge-warning'
-}
-
-function etatLabel(etat) {
-  if (etat === 'a jour') return 'À jour'
-  if (etat === 'non a jour') return 'Non à jour'
-  if (etat === 'Inactif') return 'Inactif'
-  return etat || '—'
-}
-
-function formatMoney(amount) {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'XAF',
-    maximumFractionDigits: 0,
-  }).format(Number(amount) || 0)
-}
 
 export default function PresidentMembres() {
   const [membres, setMembres] = useState([])
@@ -49,9 +30,8 @@ export default function PresidentMembres() {
     }
   }
 
-  useEffect(() => {
-    load()
-  }, [])
+  useMutuelleRefresh(load, 'membres')
+
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -123,32 +103,7 @@ export default function PresidentMembres() {
       ) : (
         <ul className="membre-list">
           {filtered.map((m) => (
-            <li key={m.id} className="membre-card">
-              <div className="membre-card-top">
-                <div className="membre-avatar" aria-hidden="true">
-                  {(m.prenom?.[0] || m.nom?.[0] || '?').toUpperCase()}
-                </div>
-                <div className="membre-card-info">
-                  <h2 className="membre-card-name">
-                    {[m.prenom, m.nom].filter(Boolean).join(' ')}
-                  </h2>
-                  <p className="membre-card-mail">{m.couriel}</p>
-                </div>
-                <span className={etatBadgeClass(m.etat)}>{etatLabel(m.etat)}</span>
-              </div>
-              <div className="membre-card-meta">
-                <span>{m.telephone || '—'}</span>
-                <span>
-                  {m.inscriptionPayee ? 'Inscription OK' : 'Inscription due'}
-                </span>
-                <span>
-                  {m.solidaritePayee ? 'Solidarité OK' : 'Solidarité due'}
-                </span>
-                <span>Épargne : {formatMoney(m.epargne)}</span>
-                <span>Dette prêt : {formatMoney(m.dette)}</span>
-                <span>Sol. due : {formatMoney(m.detteSolidarite)}</span>
-              </div>
-            </li>
+            <MembreCard key={m.id} membre={m} />
           ))}
         </ul>
       )}

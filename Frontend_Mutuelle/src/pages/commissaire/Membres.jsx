@@ -1,56 +1,50 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMutuelleRefresh, useMutuelleRefreshListener } from '../../hooks/useMutuelleRefresh'
 import { api } from '../../services/api'
+import MembreCard from '../../components/MembreCard'
 
-function etatBadgeClass(etat) {
-  if (etat === 'a jour') return 'badge badge-success'
-  if (etat === 'Inactif') return 'badge badge-danger'
-  return 'badge badge-warning'
-}
-
-function formatMoney(amount) {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'XAF',
-    maximumFractionDigits: 0,
-  }).format(Number(amount) || 0)
-}
+const ETAT_FILTERS = [
+  { id: 'TOUS', label: 'Tous' },
+  { id: 'a jour', label: 'À jour' },
+  { id: 'non a jour', label: 'Non à jour' },
+  { id: 'Inactif', label: 'Inactif' },
+]
 
 export default function CommissaireMembres() {
   const [membres, setMembres] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
+  const [etatFilter, setEtatFilter] = useState('TOUS')
 
-  useEffect(() => {
-    let alive = true
-    ;(async () => {
-      try {
-        const data = await api.getMembres()
-        if (!alive) return
-        setMembres(Array.isArray(data) ? data : [])
-      } catch (err) {
-        if (!alive) return
-        setError(err instanceof Error ? err.message : 'Chargement impossible')
-      } finally {
-        if (alive) setLoading(false)
-      }
-    })()
-    return () => {
-      alive = false
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const data = await api.getMembres()
+      setMembres(Array.isArray(data) ? data : [])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Chargement impossible')
+    } finally {
+      setLoading(false)
     }
   }, [])
 
+  useMutuelleRefresh(load, 'membres')
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return membres
-    return membres.filter((m) =>
-      [m.nom, m.prenom, m.couriel, m.telephone]
+    return membres.filter((m) => {
+      if (etatFilter !== 'TOUS' && m.etat !== etatFilter) return false
+      if (!q) return true
+      return [m.nom, m.prenom, m.couriel, m.telephone]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
-        .includes(q),
-    )
-  }, [membres, search])
+        .includes(q)
+    })
+  }, [membres, search, etatFilter])
 
   return (
     <div className="sg-page">
@@ -71,6 +65,18 @@ export default function CommissaireMembres() {
           onChange={(e) => setSearch(e.target.value)}
           aria-label="Rechercher un membre"
         />
+        <div className="filter-chips" role="tablist">
+          {ETAT_FILTERS.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              className={`filter-chip ${etatFilter === f.id ? 'is-active' : ''}`}
+              onClick={() => setEtatFilter(f.id)}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {error ? (
@@ -90,23 +96,7 @@ export default function CommissaireMembres() {
       ) : (
         <ul className="membre-list">
           {filtered.map((m) => (
-            <li key={m.id} className="membre-card">
-              <div className="membre-card-top">
-                <div className="membre-card-info">
-                  <h2 className="membre-card-name">
-                    {[m.prenom, m.nom].filter(Boolean).join(' ')}
-                  </h2>
-                  <p className="membre-card-mail">{m.couriel}</p>
-                </div>
-                <span className={etatBadgeClass(m.etat)}>{m.etat || '—'}</span>
-              </div>
-              <div className="membre-card-meta">
-                <span>Épargne : {formatMoney(m.epargne)}</span>
-                <span>Intérêts : {formatMoney(m.interet)}</span>
-                <span>Dette prêt : {formatMoney(m.dette)}</span>
-                <span>Sol. due : {formatMoney(m.detteSolidarite)}</span>
-              </div>
-            </li>
+            <MembreCard key={m.id} membre={m} />
           ))}
         </ul>
       )}

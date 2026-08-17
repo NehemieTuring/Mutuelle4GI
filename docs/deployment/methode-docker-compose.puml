@@ -1,0 +1,38 @@
+@startuml methode-docker-compose
+skinparam backgroundColor #FAFAFA
+skinparam shadowing false
+title Methode 1 - Docker Compose (dev / petit deploiement)
+
+actor Dev as "Developpeur"
+
+node "Machine hote Linux" as Host {
+  package "docker compose" as Compose {
+    frame "mutuelle-db" as CDB {
+      database "MySQL\n3307 vers 3306" as MySQL
+      storage "volume mysql_data" as Vol
+    }
+
+    frame "mutuelle-api" as CAPI {
+      component "Spring Boot\n8081 vers 8080" as Spring
+    }
+
+    frame "mutuelle-adminer" as CAdmin {
+      component "Adminer\n8082 vers 8080" as Adminer
+    }
+  }
+
+  component "Vite dev server\n5173" as Vite
+}
+
+Dev --> Vite : http://IP:5173
+Dev --> Adminer : http://IP:8082
+Vite --> Spring : proxy /api
+Spring --> MySQL : DB_HOST=db
+
+note bottom of Compose
+  Backend_Mutuelle/docker-compose.yml
+  Backend_Mutuelle/.env
+  Dockerfile multi-stage Maven + JRE 21
+end note
+
+@enduml

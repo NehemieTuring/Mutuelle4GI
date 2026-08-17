@@ -1,7 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
+import { useMutuelleRefresh, useMutuelleRefreshListener } from '../../hooks/useMutuelleRefresh'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../../services/api'
 import { getSession, updateMembreSession } from '../../services/auth'
+import ExerciceBanner from '../../components/ExerciceBanner'
+import { useExerciceEnCours } from '../../hooks/useExerciceEnCours'
 
 function formatMoney(amount) {
   return new Intl.NumberFormat('fr-FR', {
@@ -15,6 +18,7 @@ export default function PayerInscription() {
   const session = getSession()
   const membre = session?.user
   const navigate = useNavigate()
+  const { exercice, exerciceActif, loading: exerciceLoading } = useExerciceEnCours()
 
   const [montant, setMontant] = useState(null)
   const [loadingMontant, setLoadingMontant] = useState(true)
@@ -22,28 +26,66 @@ export default function PayerInscription() {
   const [error, setError] = useState('')
   const [pending, setPending] = useState(false)
 
-  useEffect(() => {
-    let alive = true
-    ;(async () => {
-      try {
-        const value = await api.getMontantInscription()
-        if (alive) setMontant(value)
-      } catch (err) {
-        if (alive) {
-          setError(
-            err instanceof Error
-              ? err.message
-              : 'Impossible de charger le montant d’inscription',
-          )
-        }
-      } finally {
-        if (alive) setLoadingMontant(false)
+  const loadState = useCallback(async () => {
+    const id = getSession()?.user?.id
+    if (!id) return
+    setLoadingMontant(true)
+    setError('')
+    try {
+      const [value, fresh, versements] = await Promise.all([
+        api.getMontantInscription(),
+        api.getMembre(id),
+        api.getVersementsMembre(id, 'inscription').catch(() => []),
+      ])
+      setMontant(Number(fresh?.detteInscription ?? value))
+      updateMembreSession(fresh)
+      if (fresh.inscriptionPayee) {
+        setPending(false)
+        navigate('/membre/epargne', { replace: true })
+        return
       }
-    })()
-    return () => {
-      alive = false
+      const hasPending = Array.isArray(versements)
+        ? versements.some((v) => v?.statut === 'en_attente')
+        : false
+      setPending(hasPending)
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Impossible de charger le montant d’inscription',
+      )
+    } finally {
+      setLoadingMontant(false)
     }
-  }, [])
+  }, [navigate])
+
+  useMutuelleRefresh(loadState, ['parametres', 'versements', 'membres'])
+
+  /** Dès que le TR valide l’inscription, entrer dans l’espace membre. */
+  const checkInscriptionValidee = useCallback(async () => {
+    const id = getSession()?.user?.id
+    if (!id) return
+    try {
+      const [fresh, versements] = await Promise.all([
+        api.getMembre(id),
+        api.getVersementsMembre(id, 'inscription').catch(() => []),
+      ])
+      updateMembreSession(fresh)
+      if (fresh.inscriptionPayee) {
+        setPending(false)
+        navigate('/membre/epargne', { replace: true })
+        return
+      }
+      const hasPending = Array.isArray(versements)
+        ? versements.some((v) => v?.statut === 'en_attente')
+        : false
+      setPending(hasPending)
+    } catch {
+      /* ignore — l’utilisateur peut encore actualiser manuellement */
+    }
+  }, [navigate])
+
+  useMutuelleRefreshListener(checkInscriptionValidee, ['versements', 'membres'])
 
   const handlePay = async () => {
     setError('')
@@ -65,7 +107,7 @@ export default function PayerInscription() {
       const fresh = await api.getMembre(membre.id)
       updateMembreSession(fresh)
       if (fresh.inscriptionPayee) {
-        navigate('/membre', { replace: true })
+        navigate('/membre/epargne', { replace: true })
       } else {
         setError(
           'Votre inscription n’est pas encore validée par le trésorier. Réessayez plus tard.',
@@ -93,6 +135,12 @@ export default function PayerInscription() {
       </header>
 
       <div className="gate-body">
+        <ExerciceBanner
+          exercice={exercice}
+          loading={exerciceLoading}
+          sgLink={null}
+          className="membre-exercice-banner"
+        />
         <p className="gate-step">Étape 2 sur 2</p>
         <h1 className="gate-title">Inscription obligatoire</h1>
         <p className="gate-lead">
@@ -110,6 +158,9 @@ export default function PayerInscription() {
               Dette d’inscription : {formatMoney(membre.detteInscription)}
             </p>
           ) : null}
+          <p className="gate-amount-hint">
+            Le paiement solde exactement le reste d’inscription dû.
+          </p>
         </div>
 
         {pending ? (
@@ -135,9 +186,13 @@ export default function PayerInscription() {
             type="button"
             className="btn btn-accent btn-block btn-touch"
             onClick={handlePay}
-            disabled={loadingMontant || submitting || montant == null}
+            disabled={loadingMontant || submitting || montant == null || !exerciceActif}
           >
-            {submitting ? 'Envoi…' : 'Payer mon inscription'}
+            {!exerciceActif
+              ? 'Exercice non ouvert'
+              : submitting
+                ? 'Envoi…'
+                : 'Payer mon inscription'}
           </button>
         )}
 

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useMutuelleRefresh } from '../../hooks/useMutuelleRefresh'
 import { api } from '../../services/api'
+import StatutBadge from '../../components/StatutBadge'
 
 function formatMoney(amount) {
   return new Intl.NumberFormat('fr-FR', {
@@ -45,9 +47,8 @@ export default function PresidentEmprunts() {
     }
   }
 
-  useEffect(() => {
-    load()
-  }, [])
+  useMutuelleRefresh(load, 'prets')
+
 
   const filtered = useMemo(() => {
     return prets.filter((p) => {
@@ -153,9 +154,11 @@ export default function PresidentEmprunts() {
                     <h2 className="membre-card-name">{membreName(p.membre)}</h2>
                     <p className="membre-card-mail">{formatDate(p.datePret)}</p>
                   </div>
-                  <span className={echu ? 'badge badge-danger' : 'badge badge-warning'}>
-                    {echu ? 'Échu' : p.statut || '—'}
-                  </span>
+                  <StatutBadge
+                    type="pret"
+                    statut={p.statut}
+                    echu={echu}
+                  />
                 </div>
                 <div className="versement-amount">{formatMoney(p.montant)}</div>
                 <div className="membre-card-meta">

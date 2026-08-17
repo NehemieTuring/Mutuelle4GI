@@ -67,8 +67,8 @@ public class VersementController {
             @RequestParam(required = false) String raison) {
         if (raison != null && !raison.isBlank()) {
             try {
-                RaisonVersement raisonEnum = RaisonVersement.valueOf(raison);
-                return ResponseEntity.ok(versementService.obtenirVersementsParRaison(raisonEnum));
+                return ResponseEntity.ok(
+                        versementService.obtenirVersementsParRaison(parseRaison(raison)));
             } catch (IllegalArgumentException e) {
                 return ResponseEntity.badRequest().build();
             }
@@ -82,9 +82,8 @@ public class VersementController {
             @RequestParam(required = false) String raison) {
         if (raison != null && !raison.isBlank()) {
             try {
-                RaisonVersement raisonEnum = RaisonVersement.valueOf(raison);
                 return ResponseEntity.ok(
-                        versementService.obtenirVersementsDuMembreParRaison(membreId, raisonEnum));
+                        versementService.obtenirVersementsDuMembreParRaison(membreId, parseRaison(raison)));
             } catch (IllegalArgumentException e) {
                 return ResponseEntity.badRequest().build();
             }
@@ -121,5 +120,9 @@ public class VersementController {
                     .message(e.getMessage())
                     .build());
         }
+    }
+
+    private static RaisonVersement parseRaison(String raison) {
+        return RaisonVersement.valueOf(raison.trim().toLowerCase());
     }
 }

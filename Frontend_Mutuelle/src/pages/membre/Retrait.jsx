@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
+import { useMutuelleRefreshListener } from '../../hooks/useMutuelleRefresh'
 import { useOutletContext } from 'react-router-dom'
 import { api } from '../../services/api'
+import StatutBadge from '../../components/StatutBadge'
+import ConfirmValidationSheet from '../../components/ConfirmValidationSheet'
 import { getSession } from '../../services/auth'
 
 function formatMoney(amount) {
@@ -20,35 +23,8 @@ function formatDate(iso) {
   })
 }
 
-function statutLabel(s) {
-  const map = {
-    en_attente_secretaire_general: 'Attente SG',
-    en_attente_tresorier: 'Attente trésorier',
-    accepte_par_sg_accepte_par_tr: 'À confirmer',
-    accepte_par_sg_refuse_par_tr: 'Refusé (TR)',
-    refuse_par_sg_refuse_par_tr: 'Refusé',
-    refuse_par_sg_accepte_par_tr: 'Refusé (SG)',
-    recue_par_membre: 'Reçu',
-  }
-  return map[s] || s || '—'
-}
-
-function statutClass(s) {
-  if (s === 'recue_par_membre' || s === 'accepte_par_sg_accepte_par_tr') {
-    return 'badge badge-success'
-  }
-  if (
-    s === 'refuse_par_sg_refuse_par_tr' ||
-    s === 'accepte_par_sg_refuse_par_tr' ||
-    s === 'refuse_par_sg_accepte_par_tr'
-  ) {
-    return 'badge badge-danger'
-  }
-  return 'badge badge-warning'
-}
-
 export default function MembreRetrait() {
-  const { membre: ctxMembre, setMembre: setCtxMembre, refreshMembre } =
+  const { membre: ctxMembre, setMembre: setCtxMembre, refreshMembre, exerciceActif } =
     useOutletContext() || {}
   const membreId = getSession()?.user?.id
 
@@ -60,6 +36,7 @@ export default function MembreRetrait() {
   const [amount, setAmount] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [confirmingId, setConfirmingId] = useState(null)
+  const [confirmItem, setConfirmItem] = useState(null)
   const [sheetError, setSheetError] = useState('')
   const [toast, setToast] = useState('')
 
@@ -93,40 +70,11 @@ export default function MembreRetrait() {
   }
 
   useEffect(() => {
-    let alive = true
-    ;(async () => {
-      if (!membreId) {
-        setLoading(false)
-        return
-      }
-      try {
-        const [fresh, sorties] = await Promise.all([
-          api.getMembre(membreId),
-          api.getSortiesMembre(membreId),
-        ])
-        if (!alive) return
-        setMembre(fresh)
-        setCtxMembre?.(fresh)
-        const list = (Array.isArray(sorties) ? sorties : []).filter(
-          (s) => s.raison === 'retrait',
-        )
-        list.sort(
-          (a, b) =>
-            new Date(b.dateSortie || 0).getTime() -
-            new Date(a.dateSortie || 0).getTime(),
-        )
-        setHistorique(list)
-      } catch (err) {
-        if (!alive) return
-        setError(err instanceof Error ? err.message : 'Chargement impossible')
-      } finally {
-        if (alive) setLoading(false)
-      }
-    })()
-    return () => {
-      alive = false
-    }
+    load()
   }, [membreId, setCtxMembre])
+
+  useMutuelleRefreshListener(load, ['membres', 'sorties'])
+
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -157,12 +105,19 @@ export default function MembreRetrait() {
     }
   }
 
-  const handleConfirm = async (sortieId) => {
-    setConfirmingId(sortieId)
+  const askConfirmReception = (item) => {
+    setError('')
+    setConfirmItem(item)
+  }
+
+  const handleConfirm = async () => {
+    if (!confirmItem) return
+    setConfirmingId(confirmItem.id)
     setError('')
     try {
-      await api.confirmerSortie(sortieId)
+      await api.confirmerSortie(confirmItem.id)
       setToast('Retrait confirmé. Votre épargne a été mise à jour.')
+      setConfirmItem(null)
       await load()
       await refreshMembre?.()
     } catch (err) {
@@ -182,14 +137,19 @@ export default function MembreRetrait() {
         <button
           type="button"
           className="btn btn-accent btn-touch"
+          disabled={!exerciceActif}
           onClick={() => {
             setSheetError('')
             setAmount('')
+            if (epargneDispo <= 0) {
+              setSheetError(
+                'Vous ne pouvez pas effectuer de retrait car votre épargne est nulle.',
+              )
+            }
             setSheetOpen(true)
           }}
-          disabled={epargneDispo <= 0}
         >
-          Effectuer un retrait
+          {exerciceActif ? 'Effectuer un retrait' : 'Exercice non ouvert'}
         </button>
       </header>
 
@@ -236,17 +196,15 @@ export default function MembreRetrait() {
                   <h2 className="membre-card-name">{formatMoney(s.montant)}</h2>
                   <p className="membre-card-mail">{formatDate(s.dateSortie)}</p>
                 </div>
-                <span className={statutClass(s.statut)}>
-                  {statutLabel(s.statut)}
-                </span>
+                <StatutBadge type="sortie" statut={s.statut} />
               </div>
               {s.statut === 'accepte_par_sg_accepte_par_tr' ? (
                 <div className="membre-card-meta">
                   <button
                     type="button"
                     className="btn btn-accent btn-touch"
-                    disabled={confirmingId === s.id}
-                    onClick={() => handleConfirm(s.id)}
+                    disabled={confirmingId === s.id || !exerciceActif}
+                    onClick={() => askConfirmReception(s)}
                   >
                     {confirmingId === s.id ? 'Confirmation…' : 'Confirmer réception'}
                   </button>
@@ -281,43 +239,74 @@ export default function MembreRetrait() {
               </button>
             </header>
             <form className="sheet-form" onSubmit={handleSubmit}>
-              <p className="sheet-hint">
-                Maximum : <strong>{formatMoney(epargneDispo)}</strong>. Validation
-                SG puis trésorier, puis confirmation de réception.
-              </p>
-              <div className="form-group">
-                <label className="form-label form-label-dark" htmlFor="ret-montant">
-                  Montant (XAF)
-                </label>
-                <input
-                  id="ret-montant"
-                  className="form-control form-control-light"
-                  type="number"
-                  inputMode="numeric"
-                  min="1"
-                  max={epargneDispo}
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  required
-                  disabled={submitting}
-                />
-              </div>
-              {sheetError ? (
+              {epargneDispo <= 0 ? (
+                <div className="form-error form-error-light" role="alert">
+                  Vous ne pouvez pas effectuer de retrait car votre épargne est
+                  nulle.
+                </div>
+              ) : (
+                <p className="sheet-hint">
+                  Maximum : <strong>{formatMoney(epargneDispo)}</strong>. Validation
+                  SG puis trésorier, puis confirmation de réception.
+                </p>
+              )}
+              {epargneDispo > 0 ? (
+                <div className="form-group">
+                  <label className="form-label form-label-dark" htmlFor="ret-montant">
+                    Montant (XAF)
+                  </label>
+                  <input
+                    id="ret-montant"
+                    className="form-control form-control-light"
+                    type="number"
+                    inputMode="numeric"
+                    min="1"
+                    max={epargneDispo}
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    required
+                    disabled={submitting}
+                  />
+                </div>
+              ) : null}
+              {sheetError && epargneDispo > 0 ? (
                 <div className="form-error form-error-light" role="alert">
                   {sheetError}
                 </div>
               ) : null}
-              <button
-                type="submit"
-                className="btn btn-accent btn-block btn-touch"
-                disabled={submitting || epargneDispo <= 0}
-              >
-                {submitting ? 'Envoi…' : 'Confirmer'}
-              </button>
+              {epargneDispo <= 0 ? (
+                <button
+                  type="button"
+                  className="btn btn-primary btn-block btn-touch"
+                  onClick={() => setSheetOpen(false)}
+                >
+                  Compris
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  className="btn btn-accent btn-block btn-touch"
+                  disabled={submitting || !exerciceActif}
+                >
+                  {submitting ? 'Envoi…' : 'Confirmer'}
+                </button>
+              )}
             </form>
           </div>
         </div>
       ) : null}
+
+      <ConfirmValidationSheet
+        open={Boolean(confirmItem)}
+        title="Confirmer la réception"
+        lead="Confirmez que vous avez bien reçu ce retrait pour le montant indiqué."
+        montant={confirmItem?.montant}
+        details={confirmItem ? [{ label: 'Type', value: 'Retrait d’épargne' }] : []}
+        confirmLabel="Oui, j’ai reçu"
+        busy={Boolean(confirmingId)}
+        onConfirm={handleConfirm}
+        onCancel={() => !confirmingId && setConfirmItem(null)}
+      />
     </div>
   )
 }

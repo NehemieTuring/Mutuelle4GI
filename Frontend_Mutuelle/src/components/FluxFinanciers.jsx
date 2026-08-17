@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useMutuelleRefresh } from '../hooks/useMutuelleRefresh'
 import { api } from '../services/api'
 
 function formatMoney(amount) {
@@ -147,9 +148,8 @@ export default function FluxFinanciers({
     }
   }
 
-  useEffect(() => {
-    load()
-  }, [])
+  useMutuelleRefresh(load, null)
+
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()

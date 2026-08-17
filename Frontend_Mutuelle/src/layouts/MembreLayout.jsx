@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { api } from '../services/api'
 import { getSession, updateMembreSession } from '../services/auth'
+import ExerciceBanner from '../components/ExerciceBanner'
+import { useMutuelleRefreshListener } from '../hooks/useMutuelleRefresh'
+import { useExerciceEnCours } from '../hooks/useExerciceEnCours'
 import {
   IconHelp,
-  IconHome,
+  IconLogout,
   IconLoan,
   IconPiggy,
+  IconUser,
   IconWithdraw,
 } from '../components/NavIcons'
 
@@ -20,6 +24,8 @@ function formatMoney(amount) {
 
 export default function MembreLayout() {
   const session = getSession()
+  const navigate = useNavigate()
+  const { exercice, exerciceActif, loading: exerciceLoading } = useExerciceEnCours()
   const [membre, setMembre] = useState(session?.user)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [amount, setAmount] = useState('')
@@ -35,6 +41,15 @@ export default function MembreLayout() {
     updateMembreSession(fresh)
     return fresh
   }
+
+  useMutuelleRefreshListener(refreshMembre, [
+    'membres',
+    'versements',
+    'sorties',
+    'prets',
+    'remboursements',
+    'exercices',
+  ])
 
   useEffect(() => {
     const id = session?.user?.id
@@ -103,66 +118,143 @@ export default function MembreLayout() {
     }
   }
 
+  const handleLogout = () => {
+    api.logout()
+    navigate('/connexion', { replace: true })
+  }
+
+  const membreLabel =
+    [membre?.prenom, membre?.nom].filter(Boolean).join(' ') || membre?.couriel || 'Membre'
+
   return (
-    <div className="membre-shell">
-      {solidariteNonSoldee ? (
-        <div className="membre-solidarite-banner membre-solidarite-banner-sticky" role="status">
-          <p className="membre-solidarite-banner-title">Solidarité non soldée</p>
-          <p className="membre-solidarite-banner-text">
-            Vous n’avez pas encore soldé votre cotisation de solidarité. Il vous
-            reste <strong>{formatMoney(resteSolidarite)}</strong> à payer pour
-            être à jour.
-          </p>
+    <div className="bureau-shell membre-shell">
+      <aside className="bureau-sidebar membre-sidebar" aria-label="Navigation membre">
+        <div className="bureau-sidebar-brand">
+          <span className="bureau-sidebar-title">Mutuelle ENSPY</span>
+          <span className="bureau-sidebar-role">Espace membre</span>
+        </div>
+
+        <nav className="bureau-sidebar-nav">
+          <NavLink
+            to="/membre/epargne"
+            className={({ isActive }) => `bureau-nav-item ${isActive ? 'is-active' : ''}`}
+          >
+            <span className="bureau-nav-icon">
+              <IconPiggy size={20} />
+            </span>
+            <span>Épargne</span>
+          </NavLink>
+          <NavLink
+            to="/membre/retrait"
+            className={({ isActive }) => `bureau-nav-item ${isActive ? 'is-active' : ''}`}
+          >
+            <span className="bureau-nav-icon">
+              <IconWithdraw size={20} />
+            </span>
+            <span>Retrait</span>
+          </NavLink>
+          <NavLink
+            to="/membre/aide"
+            className={({ isActive }) => `bureau-nav-item ${isActive ? 'is-active' : ''}`}
+          >
+            <span className="bureau-nav-icon">
+              <IconHelp size={20} />
+            </span>
+            <span>Aide</span>
+          </NavLink>
+          <NavLink
+            to="/membre/emprunt"
+            className={({ isActive }) => `bureau-nav-item ${isActive ? 'is-active' : ''}`}
+          >
+            <span className="bureau-nav-icon">
+              <IconLoan size={20} />
+            </span>
+            <span>Emprunt</span>
+          </NavLink>
+          <NavLink
+            to="/membre/compte"
+            className={({ isActive }) => `bureau-nav-item ${isActive ? 'is-active' : ''}`}
+          >
+            <span className="bureau-nav-icon">
+              <IconUser size={20} />
+            </span>
+            <span>Mon compte</span>
+          </NavLink>
+        </nav>
+
+        <div className="bureau-sidebar-footer">
+          <p className="bureau-user-name">{membreLabel}</p>
           <button
             type="button"
-            className="btn btn-solidarite btn-touch"
-            onClick={openSolidarite}
+            className="btn btn-ghost-dark btn-touch"
+            onClick={handleLogout}
           >
-            Payer ma solidarité
+            Déconnexion
           </button>
         </div>
-      ) : null}
+      </aside>
 
-      {toast ? (
-        <div className="membre-shell-toast inline-success" role="status">
-          {toast}
-          <button type="button" className="inline-dismiss" onClick={() => setToast('')}>
-            OK
-          </button>
-        </div>
-      ) : null}
-
-      <div className="membre-shell-content">
-        <Outlet
-          context={{
-            membre,
-            setMembre,
-            refreshMembre,
-            resteSolidarite,
-            solidariteNonSoldee,
-            openSolidarite,
-          }}
+      <div className="bureau-main membre-main">
+        <ExerciceBanner
+          exercice={exercice}
+          loading={exerciceLoading}
+          sgLink={null}
+          className="bureau-exercice-banner membre-exercice-banner"
         />
+
+        {solidariteNonSoldee ? (
+          <div className="membre-solidarite-banner membre-solidarite-banner-sticky" role="status">
+            <p className="membre-solidarite-banner-title">Solidarité non soldée</p>
+            <p className="membre-solidarite-banner-text">
+              Vous n’avez pas encore soldé votre cotisation de solidarité. Il vous
+              reste <strong>{formatMoney(resteSolidarite)}</strong> à payer pour
+              être à jour.
+            </p>
+            <button
+              type="button"
+              className="btn btn-solidarite btn-touch"
+              onClick={openSolidarite}
+              disabled={!exerciceActif}
+            >
+              {exerciceActif ? 'Payer ma solidarité' : 'Exercice non ouvert'}
+            </button>
+          </div>
+        ) : null}
+
+        {toast ? (
+          <div className="membre-shell-toast inline-success" role="status">
+            {toast}
+            <button type="button" className="inline-dismiss" onClick={() => setToast('')}>
+              OK
+            </button>
+          </div>
+        ) : null}
+
+        <div className="membre-shell-content">
+          <Outlet
+            context={{
+              membre,
+              setMembre,
+              refreshMembre,
+              resteSolidarite,
+              solidariteNonSoldee,
+              openSolidarite,
+              exercice,
+              exerciceActif,
+              exerciceLoading,
+            }}
+          />
+        </div>
       </div>
 
       <nav className="membre-bottom-nav" aria-label="Navigation membre">
-        <NavLink
-          to="/membre"
-          end
-          className={({ isActive }) =>
-            `membre-bottom-item ${isActive ? 'is-active' : ''}`
-          }
-        >
-          <IconHome />
-          <span>Accueil</span>
-        </NavLink>
         <NavLink
           to="/membre/epargne"
           className={({ isActive }) =>
             `membre-bottom-item ${isActive ? 'is-active' : ''}`
           }
         >
-          <IconPiggy />
+          <IconPiggy size={26} />
           <span>Épargne</span>
         </NavLink>
         <NavLink
@@ -171,7 +263,7 @@ export default function MembreLayout() {
             `membre-bottom-item ${isActive ? 'is-active' : ''}`
           }
         >
-          <IconWithdraw />
+          <IconWithdraw size={26} />
           <span>Retrait</span>
         </NavLink>
         <NavLink
@@ -180,7 +272,7 @@ export default function MembreLayout() {
             `membre-bottom-item ${isActive ? 'is-active' : ''}`
           }
         >
-          <IconHelp />
+          <IconHelp size={26} />
           <span>Aide</span>
         </NavLink>
         <NavLink
@@ -189,9 +281,22 @@ export default function MembreLayout() {
             `membre-bottom-item ${isActive ? 'is-active' : ''}`
           }
         >
-          <IconLoan />
+          <IconLoan size={26} />
           <span>Emprunt</span>
         </NavLink>
+        <NavLink
+          to="/membre/compte"
+          className={({ isActive }) =>
+            `membre-bottom-item ${isActive ? 'is-active' : ''}`
+          }
+        >
+          <IconUser size={26} />
+          <span>Compte</span>
+        </NavLink>
+        <button type="button" className="membre-bottom-item" onClick={handleLogout}>
+          <IconLogout size={26} />
+          <span>Quitter</span>
+        </button>
       </nav>
 
       {sheetOpen ? (

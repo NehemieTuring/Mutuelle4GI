@@ -22,9 +22,6 @@ public class MembreService {
     @Autowired
     private PasswordService passwordService;
 
-    @Autowired
-    private ParametresGenerauxService parametresGenerauxService;
-
     public List<Membre> getAllMembres() {
         return membreRepository.findAll();
     }
@@ -67,25 +64,17 @@ public class MembreService {
         }
         membre.setMotDePasse(passwordService.encode(membre.getMotDePasse()));
 
-        com.mutuelle.api.entity.ParametresGeneraux params = null;
-        try {
-            params = parametresGenerauxService.getParametres();
-        } catch (Exception e) {
-            log.warn("Paramètres généraux non trouvés à la création du membre via createMembre");
-        }
-
-        java.math.BigDecimal initialMontantInscription = params != null ? params.getMontantInscription() : new java.math.BigDecimal("50000.00");
-        java.math.BigDecimal initialMontantSolidarite = params != null ? params.getMontantSolidarite() : new java.math.BigDecimal("150000.00");
-
         if (membre.getDetteInscription() == null) {
-            boolean isInscriptionPayee = membre.getInscriptionPayee() != null ? membre.getInscriptionPayee() : false;
-            membre.setDetteInscription(isInscriptionPayee ? java.math.BigDecimal.ZERO : initialMontantInscription);
+            membre.setDetteInscription(java.math.BigDecimal.ZERO);
         }
         if (membre.getDetteSolidarite() == null) {
-            membre.setDetteSolidarite(initialMontantSolidarite);
+            membre.setDetteSolidarite(java.math.BigDecimal.ZERO);
         }
         if (membre.getSolidaritePayee() == null) {
             membre.setSolidaritePayee(false);
+        }
+        if (membre.getInscriptionPayee() == null) {
+            membre.setInscriptionPayee(false);
         }
 
         return membreRepository.save(membre);
@@ -96,18 +85,7 @@ public class MembreService {
             throw new IllegalArgumentException("Un membre avec l'adresse courriel " + request.getCouriel() + " existe déjà");
         }
 
-        com.mutuelle.api.entity.ParametresGeneraux params = null;
-        try {
-            params = parametresGenerauxService.getParametres();
-        } catch (Exception e) {
-            log.warn("Paramètres généraux non trouvés à la création du membre");
-        }
-
-        java.math.BigDecimal initialMontantInscription = params != null ? params.getMontantInscription() : new java.math.BigDecimal("50000.00");
-        java.math.BigDecimal initialMontantSolidarite = params != null ? params.getMontantSolidarite() : new java.math.BigDecimal("150000.00");
-
         boolean isInscriptionPayee = request.getInscriptionPayee() != null ? request.getInscriptionPayee() : false;
-        java.math.BigDecimal detteInscription = isInscriptionPayee ? java.math.BigDecimal.ZERO : initialMontantInscription;
 
         Membre membre = Membre.builder()
                 .nom(request.getNom())
@@ -118,8 +96,8 @@ public class MembreService {
                 .compteVerifie(false)
                 .inscriptionPayee(isInscriptionPayee)
                 .solidaritePayee(false)
-                .detteInscription(detteInscription)
-                .detteSolidarite(initialMontantSolidarite)
+                .detteInscription(java.math.BigDecimal.ZERO)
+                .detteSolidarite(java.math.BigDecimal.ZERO)
                 .build();
 
         String clearPassword = "MonMot2Passe!";
@@ -133,13 +111,25 @@ public class MembreService {
     }
 
     public Membre modifierMotDePasse(String id, String nouveauMotDePasse) {
+        return modifierMotDePasse(id, nouveauMotDePasse, null);
+    }
+
+    public Membre modifierMotDePasse(String id, String nouveauMotDePasse, String ancienMotDePasse) {
         Membre existing = membreRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Membre avec l'id " + id + " n'existe pas"));
-        
+
         if (nouveauMotDePasse == null || nouveauMotDePasse.trim().isEmpty()) {
             throw new IllegalArgumentException("Le nouveau mot de passe ne peut pas être vide");
         }
-        
+
+        // Compte déjà activé : l'ancien mot de passe est obligatoire
+        if (Boolean.TRUE.equals(existing.getCompteVerifie())) {
+            if (ancienMotDePasse == null || ancienMotDePasse.isBlank()
+                    || !passwordService.matches(ancienMotDePasse, existing.getMotDePasse())) {
+                throw new IllegalArgumentException("L'ancien mot de passe est incorrect");
+            }
+        }
+
         existing.setMotDePasse(passwordService.encode(nouveauMotDePasse));
         existing.setCompteVerifie(true);
         return membreRepository.save(existing);

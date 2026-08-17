@@ -32,29 +32,29 @@ public class VersementService {
     private ParametresGenerauxRepository parametresGenerauxRepository;
 
     @Autowired
-    private com.mutuelle.api.repository.ExerciceRepository exerciceRepository;
-
-    private void checkActiveExercice() {
-        if (exerciceRepository.findByStatut("en cours").isEmpty()) {
-            throw new IllegalStateException("Aucun exercice en cours. Opération impossible.");
-        }
-    }
+    private ExerciceService exerciceService;
 
     public Versement demanderInscription(String membreId, BigDecimal montant) {
-        checkActiveExercice();
+        Exercice exercice = exerciceService.requireExerciceEnCours();
         Membre membre = membreRepository.findById(membreId)
                 .orElseThrow(() -> new IllegalArgumentException("Membre avec l'id " + membreId + " n'existe pas"));
 
-        ParametresGeneraux parametres = parametresGenerauxService.getParametres();
-        BigDecimal montantRequis = parametres.getMontantInscription();
+        BigDecimal montantRequis = membre.getDetteInscription();
+        if (montantRequis == null) {
+            montantRequis = BigDecimal.ZERO;
+        }
+        if (montantRequis.compareTo(BigDecimal.ZERO) <= 0 || Boolean.TRUE.equals(membre.getInscriptionPayee())) {
+            throw new IllegalArgumentException("L'inscription de ce membre est déjà soldée.");
+        }
 
         if (montant == null || montant.compareTo(montantRequis) != 0) {
-            throw new IllegalArgumentException("Le montant reçu ne correspond pas au montant de l'inscription (" + montantRequis + ")");
+            throw new IllegalArgumentException("Le montant reçu ne correspond pas au reste d'inscription dû (" + montantRequis + ")");
         }
 
         Versement versement = Versement.builder()
                 .montant(montant)
                 .membre(membre)
+                .exercice(exercice)
                 .raison(RaisonVersement.inscription)
                 .statut(StatutVersement.en_attente)
                 .description("Paiement de l'inscription")
@@ -69,7 +69,7 @@ public class VersementService {
     }
 
     public Versement demanderSolidarite(String membreId, BigDecimal montant) {
-        checkActiveExercice();
+        Exercice exercice = exerciceService.requireExerciceEnCours();
         Membre membre = membreRepository.findById(membreId)
                 .orElseThrow(() -> new IllegalArgumentException("Membre avec l'id " + membreId + " n'existe pas"));
 
@@ -89,6 +89,7 @@ public class VersementService {
         Versement versement = Versement.builder()
                 .montant(montant)
                 .membre(membre)
+                .exercice(exercice)
                 .raison(RaisonVersement.solidarite)
                 .statut(StatutVersement.en_attente)
                 .description("Paiement de la solidarité")
@@ -103,7 +104,7 @@ public class VersementService {
     }
 
     public Versement demanderEpargne(String membreId, BigDecimal montant) {
-        checkActiveExercice();
+        Exercice exercice = exerciceService.requireExerciceEnCours();
         Membre membre = membreRepository.findById(membreId)
                 .orElseThrow(() -> new IllegalArgumentException("Membre avec l'id " + membreId + " n'existe pas"));
 
@@ -114,6 +115,7 @@ public class VersementService {
         Versement versement = Versement.builder()
                 .montant(montant)
                 .membre(membre)
+                .exercice(exercice)
                 .raison(RaisonVersement.epargne)
                 .statut(StatutVersement.en_attente)
                 .description("Versement d'épargne")
@@ -148,6 +150,7 @@ public class VersementService {
     }
 
     public Versement accepterVersement(String versementId) {
+        exerciceService.requireExerciceEnCours();
         Versement versement = versementRepository.findById(versementId)
                 .orElseThrow(() -> new IllegalArgumentException("Versement avec l'id " + versementId + " n'existe pas"));
 
@@ -173,6 +176,8 @@ public class VersementService {
             if (detteRestante.compareTo(BigDecimal.ZERO) == 0) {
                 membre.setInscriptionPayee(true);
             }
+            // Recalcule etat (dette solidarité) + persiste inscriptionPayee / detteInscription
+            membre.mettreAJourEtat();
             membreRepository.save(membre);
 
             // Mettre à jour le montant dans la caisse des inscriptions (montant existant + montant du versement)
@@ -244,6 +249,7 @@ public class VersementService {
     }
 
     public Versement refuserVersement(String versementId) {
+        exerciceService.requireExerciceEnCours();
         Versement versement = versementRepository.findById(versementId)
                 .orElseThrow(() -> new IllegalArgumentException("Versement avec l'id " + versementId + " n'existe pas"));
 

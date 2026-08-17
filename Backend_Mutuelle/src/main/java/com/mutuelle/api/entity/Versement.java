@@ -33,9 +33,13 @@ public class Versement {
     private LocalDateTime dateVersement;
 
     @NotNull(message = "Le membre effectuant le versement est obligatoire")
-    @ManyToOne(optional = false, fetch = FetchType.EAGER)
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "membre_id", nullable = false)
     private Membre membre;
+
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "exercice_id", nullable = false)
+    private Exercice exercice;
 
     @NotNull(message = "La raison du versement est obligatoire")
     @Enumerated(EnumType.STRING)

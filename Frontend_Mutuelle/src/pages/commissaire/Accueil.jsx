@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useMutuelleRefresh, useMutuelleRefreshListener } from '../../hooks/useMutuelleRefresh'
 import { Link } from 'react-router-dom'
 import { api } from '../../services/api'
 import CaissesOverview from '../../components/CaissesOverview'
@@ -9,34 +10,31 @@ export default function CommissaireAccueil() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    let alive = true
-    ;(async () => {
-      try {
-        const [params, versements, sorties, prets] = await Promise.all([
-          api.getParametres(),
-          api.getTousVersements(),
-          api.getToutesSorties(),
-          api.getTousPrets(),
-        ])
-        if (!alive) return
-        setParametres(params)
-        setCounts({
-          versements: Array.isArray(versements) ? versements.length : 0,
-          sorties: Array.isArray(sorties) ? sorties.length : 0,
-          prets: Array.isArray(prets) ? prets.length : 0,
-        })
-      } catch (err) {
-        if (!alive) return
-        setError(err instanceof Error ? err.message : 'Chargement impossible')
-      } finally {
-        if (alive) setLoading(false)
-      }
-    })()
-    return () => {
-      alive = false
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const [params, versements, sorties, prets] = await Promise.all([
+        api.getParametres(),
+        api.getTousVersements(),
+        api.getToutesSorties(),
+        api.getTousPrets(),
+      ])
+      setParametres(params)
+      setCounts({
+        versements: Array.isArray(versements) ? versements.length : 0,
+        sorties: Array.isArray(sorties) ? sorties.length : 0,
+        prets: Array.isArray(prets) ? prets.length : 0,
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Chargement impossible')
+    } finally {
+      setLoading(false)
     }
   }, [])
+
+  useMutuelleRefresh(load, null)
 
   return (
     <div className="sg-page">

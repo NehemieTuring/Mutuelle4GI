@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useMutuelleRefresh, useMutuelleRefreshListener } from '../../hooks/useMutuelleRefresh'
 import { api } from '../../services/api'
+import StatutBadge from '../../components/StatutBadge'
 
 function formatMoney(amount) {
   return new Intl.NumberFormat('fr-FR', {
@@ -28,24 +30,21 @@ export default function CommissaireSorties() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    let alive = true
-    ;(async () => {
-      try {
-        const data = await api.getToutesSorties()
-        if (!alive) return
-        setItems(Array.isArray(data) ? data : [])
-      } catch (err) {
-        if (!alive) return
-        setError(err instanceof Error ? err.message : 'Chargement impossible')
-      } finally {
-        if (alive) setLoading(false)
-      }
-    })()
-    return () => {
-      alive = false
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const data = await api.getToutesSorties()
+      setItems(Array.isArray(data) ? data : [])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Chargement impossible')
+    } finally {
+      setLoading(false)
     }
   }, [])
+
+  useMutuelleRefresh(load, 'sorties')
 
   return (
     <div className="sg-page">
@@ -81,7 +80,7 @@ export default function CommissaireSorties() {
                     {s.raison} — {formatDate(s.dateSortie)}
                   </p>
                 </div>
-                <span className="badge badge-warning">{s.statut}</span>
+                <StatutBadge type="sortie" statut={s.statut} />
               </div>
               <div className="versement-amount">{formatMoney(s.montant)}</div>
             </li>

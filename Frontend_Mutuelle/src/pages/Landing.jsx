@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import heroImage from '../assets/hero-mutuelle.png'
 
 const SERVICES = [
   {
@@ -68,13 +67,6 @@ export default function Landing() {
 
       <header className="hero" id="top">
         <div className="hero-media" aria-hidden="true">
-          <img
-            src={heroImage}
-            alt="Membres de la mutuelle réunis pour une session de cotisation et d’épargne collective"
-            width={1536}
-            height={1024}
-            fetchPriority="high"
-          />
           <div className="hero-scrim" />
         </div>
 

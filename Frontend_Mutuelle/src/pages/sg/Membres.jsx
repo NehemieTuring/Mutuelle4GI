@@ -1,5 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
+import { useMutuelleRefresh } from '../../hooks/useMutuelleRefresh'
 import { api } from '../../services/api'
+import MembreCard from '../../components/MembreCard'
+import {
+  isValidPhone,
+  normalizePhone,
+  PHONE_HINT,
+} from '../../utils/validation'
 
 const ETAT_FILTERS = [
   { id: 'TOUS', label: 'Tous' },
@@ -7,19 +14,6 @@ const ETAT_FILTERS = [
   { id: 'non a jour', label: 'Non à jour' },
   { id: 'Inactif', label: 'Inactif' },
 ]
-
-function etatBadgeClass(etat) {
-  if (etat === 'a jour') return 'badge badge-success'
-  if (etat === 'Inactif') return 'badge badge-danger'
-  return 'badge badge-warning'
-}
-
-function etatLabel(etat) {
-  if (etat === 'a jour') return 'À jour'
-  if (etat === 'non a jour') return 'Non à jour'
-  if (etat === 'Inactif') return 'Inactif'
-  return etat || '—'
-}
 
 const emptyForm = {
   nom: '',
@@ -36,7 +30,6 @@ export default function SgMembres() {
   const [search, setSearch] = useState('')
   const [etatFilter, setEtatFilter] = useState('TOUS')
   const [sheetOpen, setSheetOpen] = useState(false)
-  const [editId, setEditId] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState('')
@@ -55,26 +48,7 @@ export default function SgMembres() {
     }
   }
 
-  useEffect(() => {
-    let alive = true
-
-    ;(async () => {
-      try {
-        const data = await api.getMembres()
-        if (!alive) return
-        setMembres(Array.isArray(data) ? data : [])
-      } catch (err) {
-        if (!alive) return
-        setError(err instanceof Error ? err.message : 'Erreur de chargement')
-      } finally {
-        if (alive) setLoading(false)
-      }
-    })()
-
-    return () => {
-      alive = false
-    }
-  }, [])
+  useMutuelleRefresh(loadMembres, 'membres')
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -90,22 +64,7 @@ export default function SgMembres() {
   }, [membres, search, etatFilter])
 
   const openCreate = () => {
-    setEditId(null)
     setForm(emptyForm)
-    setFormError('')
-    setSuccessMsg('')
-    setSheetOpen(true)
-  }
-
-  const openEdit = (m) => {
-    setEditId(m.id)
-    setForm({
-      nom: m.nom || '',
-      prenom: m.prenom || '',
-      couriel: m.couriel || '',
-      telephone: m.telephone || '',
-      inscriptionPayee: !!m.inscriptionPayee,
-    })
     setFormError('')
     setSuccessMsg('')
     setSheetOpen(true)
@@ -114,42 +73,31 @@ export default function SgMembres() {
   const closeCreate = () => {
     if (submitting) return
     setSheetOpen(false)
-    setEditId(null)
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setFormError('')
+    const phone = normalizePhone(form.telephone)
+    if (!isValidPhone(phone)) {
+      setFormError(PHONE_HINT)
+      return
+    }
     setSubmitting(true)
     try {
-      if (editId) {
-        await api.updateMembre(editId, {
-          nom: form.nom.trim(),
-          prenom: form.prenom.trim() || undefined,
-          couriel: form.couriel.trim(),
-          telephone: form.telephone.trim(),
-        })
-        setSuccessMsg('Profil membre mis à jour.')
-      } else {
-        await api.createMembre({
-          nom: form.nom.trim(),
-          prenom: form.prenom.trim() || undefined,
-          couriel: form.couriel.trim(),
-          telephone: form.telephone.trim(),
-          inscriptionPayee: form.inscriptionPayee,
-        })
-        setSuccessMsg('Membre créé. Mot de passe temporaire : MonMot2Passe!')
-      }
+      await api.createMembre({
+        nom: form.nom.trim(),
+        prenom: form.prenom.trim() || undefined,
+        couriel: form.couriel.trim(),
+        telephone: phone,
+        inscriptionPayee: form.inscriptionPayee,
+      })
+      setSuccessMsg('Membre créé. Mot de passe temporaire : MonMot2Passe!')
       setSheetOpen(false)
-      setEditId(null)
       await loadMembres()
     } catch (err) {
       setFormError(
-        err instanceof Error
-          ? err.message
-          : editId
-            ? 'Mise à jour impossible'
-            : 'Création impossible',
+        err instanceof Error ? err.message : 'Création impossible',
       )
     } finally {
       setSubmitting(false)
@@ -161,14 +109,14 @@ export default function SgMembres() {
       <header className="sg-page-header">
         <div>
           <p className="sg-page-eyebrow">Gestion</p>
-          <h1 className="sg-page-title">Membre</h1>
+          <h1 className="sg-page-title">Membres</h1>
         </div>
         <button
           type="button"
           className="btn btn-accent btn-touch sg-create-btn"
           onClick={openCreate}
         >
-          Créer
+          Ajouter un membre
         </button>
       </header>
 
@@ -233,37 +181,7 @@ export default function SgMembres() {
       ) : (
         <ul className="membre-list">
           {filtered.map((m) => (
-            <li key={m.id} className="membre-card">
-              <div className="membre-card-top">
-                <div className="membre-avatar" aria-hidden="true">
-                  {(m.prenom?.[0] || m.nom?.[0] || '?').toUpperCase()}
-                </div>
-                <div className="membre-card-info">
-                  <h2 className="membre-card-name">
-                    {[m.prenom, m.nom].filter(Boolean).join(' ')}
-                  </h2>
-                  <p className="membre-card-mail">{m.couriel}</p>
-                </div>
-                <span className={etatBadgeClass(m.etat)}>{etatLabel(m.etat)}</span>
-              </div>
-              <div className="membre-card-meta">
-                <span>{m.telephone || '—'}</span>
-                <span>
-                  {m.compteVerifie ? 'Compte vérifié' : 'Compte non vérifié'}
-                </span>
-                <span>
-                  {m.inscriptionPayee ? 'Inscription payée' : 'Inscription due'}
-                </span>
-              </div>
-              <button
-                type="button"
-                className="btn btn-primary btn-block btn-touch"
-                style={{ marginTop: 12 }}
-                onClick={() => openEdit(m)}
-              >
-                Modifier
-              </button>
-            </li>
+            <MembreCard key={m.id} membre={m} />
           ))}
         </ul>
       )}
@@ -288,9 +206,7 @@ export default function SgMembres() {
           >
             <div className="sheet-handle" aria-hidden="true" />
             <header className="sheet-header">
-              <h2 id="create-membre-title">
-                {editId ? 'Modifier le membre' : 'Nouveau membre'}
-              </h2>
+              <h2 id="create-membre-title">Nouveau membre</h2>
               <button
                 type="button"
                 className="sheet-close btn-touch"
@@ -363,22 +279,24 @@ export default function SgMembres() {
                   required
                   autoComplete="tel"
                   disabled={submitting}
+                  placeholder="6XXXXXXXX ou 2XXXXXXXX"
                 />
+                <p className="sheet-hint" style={{ marginTop: 6 }}>
+                  {PHONE_HINT}
+                </p>
               </div>
 
-              {!editId ? (
-                <label className="check-row">
-                  <input
-                    type="checkbox"
-                    checked={form.inscriptionPayee}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, inscriptionPayee: e.target.checked }))
-                    }
-                    disabled={submitting}
-                  />
-                  <span>Inscription déjà payée</span>
-                </label>
-              ) : null}
+              <label className="check-row">
+                <input
+                  type="checkbox"
+                  checked={form.inscriptionPayee}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, inscriptionPayee: e.target.checked }))
+                  }
+                  disabled={submitting}
+                />
+                <span>Inscription déjà payée</span>
+              </label>
 
               {formError ? (
                 <div className="form-error form-error-light" role="alert">
@@ -391,13 +309,7 @@ export default function SgMembres() {
                 className="btn btn-accent btn-block btn-touch"
                 disabled={submitting}
               >
-                {submitting
-                  ? editId
-                    ? 'Mise à jour…'
-                    : 'Création…'
-                  : editId
-                    ? 'Enregistrer les modifications'
-                    : 'Enregistrer le membre'}
+                {submitting ? 'Création…' : 'Enregistrer le membre'}
               </button>
             </form>
           </div>

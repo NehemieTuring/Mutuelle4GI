@@ -1,5 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useMutuelleRefresh, useMutuelleRefreshListener } from '../../hooks/useMutuelleRefresh'
 import { api } from '../../services/api'
+import StatutBadge from '../../components/StatutBadge'
+import { ExerciceStatusChip } from '../../components/ExerciceBanner'
 
 function formatMoney(amount) {
   return new Intl.NumberFormat('fr-FR', {
@@ -23,27 +26,41 @@ function formatDate(iso) {
 export default function SgExercices() {
   const [horloge, setHorloge] = useState(null)
   const [simDate, setSimDate] = useState('')
-  const [lastExercice, setLastExercice] = useState(null)
+  const [exerciceEnCours, setExerciceEnCours] = useState(null)
+  const [historique, setHistorique] = useState([])
+  const [lastOperation, setLastOperation] = useState(null)
+  const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
 
-  const loadHorloge = async () => {
+  const loadAll = useCallback(async () => {
+    setLoading(true)
+    setError('')
     try {
-      const data = await api.getSimulationHorloge()
-      setHorloge(data)
-      if (data?.dateActuelle) {
-        const raw = String(data.dateActuelle).slice(0, 16)
-        setSimDate(raw)
+      const [courant, liste, horlogeData] = await Promise.all([
+        api.getExerciceEnCours(),
+        api.getExercices(),
+        api.getSimulationHorloge(),
+      ])
+      setExerciceEnCours(courant)
+      setHistorique(Array.isArray(liste) ? liste : [])
+      setHorloge(horlogeData)
+      if (horlogeData?.dateActuelle) {
+        setSimDate(String(horlogeData.dateActuelle).slice(0, 16))
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Horloge indisponible')
+      setError(err instanceof Error ? err.message : 'Chargement impossible')
+    } finally {
+      setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
-    loadHorloge()
-  }, [])
+    loadAll()
+  }, [loadAll])
+
+  useMutuelleRefreshListener(loadAll, 'exercices')
 
   const runAction = async (key, fn, successMsg) => {
     setBusy(key)
@@ -51,11 +68,10 @@ export default function SgExercices() {
     setToast('')
     try {
       const result = await fn()
-      if (result?.exercice || result?.id) {
-        setLastExercice(result)
-      }
+      setLastOperation(result)
       setToast(successMsg)
-      await loadHorloge()
+      await loadAll()
+      window.dispatchEvent(new CustomEvent('exercice-change'))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Action impossible')
     } finally {
@@ -68,6 +84,8 @@ export default function SgExercices() {
     return value.length === 16 ? `${value}:00` : value
   }
 
+  const hasExerciceOuvert = !!exerciceEnCours
+
   return (
     <div className="sg-page">
       <header className="sg-page-header">
@@ -75,6 +93,7 @@ export default function SgExercices() {
           <p className="sg-page-eyebrow">Comptabilité</p>
           <h1 className="sg-page-title">Exercices</h1>
         </div>
+        <ExerciceStatusChip exercice={exerciceEnCours} loading={loading} />
       </header>
 
       {toast ? (
@@ -93,17 +112,43 @@ export default function SgExercices() {
       ) : null}
 
       <section className="exercice-section">
-        <h3 className="membre-dash-section-title">Gestion de l’exercice</h3>
+        <h3 className="membre-dash-section-title">Exercice en cours</h3>
         <p className="sheet-hint">
-          Un seul exercice « en cours » à la fois. Les versements et sorties
-          exigent un exercice ouvert. La clôture est refusée s’il reste des prêts
-          non remboursés.
+          Un seul exercice « en cours » à la fois. À l’ouverture, les dettes
+          d’inscription et de solidarité sont recalculées pour chaque membre. Les
+          versements, sorties et remboursements ne sont possibles que pendant un
+          exercice ouvert.
         </p>
+
+        {loading ? (
+          <p className="sheet-hint">Chargement…</p>
+        ) : hasExerciceOuvert ? (
+          <div className="exercice-result exercice-result-active">
+            <p>
+              <strong>Statut :</strong>{' '}
+              <StatutBadge type="exercice" statut={exerciceEnCours.statut} />
+            </p>
+            <p>
+              <strong>Ouverture :</strong> {formatDate(exerciceEnCours.dateOuverture)}
+            </p>
+            <p className="sheet-hint exercice-active-hint">
+              Toutes les opérations de la mutuelle sont rattachées à cet exercice.
+            </p>
+          </div>
+        ) : (
+          <div className="exercice-result exercice-result-empty">
+            <p>
+              <strong>Aucun exercice ouvert.</strong> Ouvrez un exercice pour
+              permettre les opérations financières.
+            </p>
+          </div>
+        )}
+
         <div className="action-stack">
           <button
             type="button"
             className="btn btn-accent btn-block btn-touch"
-            disabled={!!busy}
+            disabled={!!busy || hasExerciceOuvert}
             onClick={() =>
               runAction(
                 'ouvrir',
@@ -117,12 +162,12 @@ export default function SgExercices() {
           <button
             type="button"
             className="btn btn-primary btn-block btn-touch"
-            disabled={!!busy}
+            disabled={!!busy || hasExerciceOuvert}
             onClick={() =>
               runAction(
                 'force',
                 () => api.ouvrirExerciceForce(),
-                'Exercice ouvert en mode forcé.',
+                'Exercice ouvert en mode forcé (prêts non remboursés ignorés).',
               )
             }
           >
@@ -131,12 +176,12 @@ export default function SgExercices() {
           <button
             type="button"
             className="btn btn-ghost-dark btn-block btn-touch"
-            disabled={!!busy}
+            disabled={!!busy || !hasExerciceOuvert}
             onClick={() =>
               runAction(
                 'cloturer',
                 () => api.cloturerExercice(),
-                'Exercice clôturé.',
+                'Exercice clôturé. Les opérations sont suspendues.',
               )
             }
           >
@@ -144,31 +189,65 @@ export default function SgExercices() {
           </button>
         </div>
 
-        {lastExercice ? (
+        {!hasExerciceOuvert ? (
+          <p className="sheet-hint">
+            L’ouverture forcée ignore les prêts non remboursés mais applique la
+            même procédure de calcul des dettes.
+          </p>
+        ) : (
+          <p className="sheet-hint">
+            La clôture est refusée s’il reste des prêts non remboursés.
+          </p>
+        )}
+
+        {lastOperation?.exercice || lastOperation?.partInscription != null ? (
           <div className="exercice-result">
             <p>
-              <strong>Dernière opération</strong>
+              <strong>Dernière ouverture</strong>
             </p>
-            {lastExercice.exercice ? (
+            {lastOperation.exercice ? (
               <>
-                <p>Statut : {lastExercice.exercice.statut || '—'}</p>
-                <p>Ouverture : {formatDate(lastExercice.exercice.dateOuverture)}</p>
                 <p>
-                  Part inscription : {formatMoney(lastExercice.partInscription)}
+                  Statut : <StatutBadge type="exercice" statut={lastOperation.exercice.statut} />
                 </p>
-                <p>
-                  Part solidarité : {formatMoney(lastExercice.partSolidarite)}
-                </p>
+                <p>Ouverture : {formatDate(lastOperation.exercice.dateOuverture)}</p>
+                <p>Part inscription : {formatMoney(lastOperation.partInscription)}</p>
+                <p>Part solidarité : {formatMoney(lastOperation.partSolidarite)}</p>
               </>
-            ) : (
-              <>
-                <p>Statut : {lastExercice.statut || '—'}</p>
-                <p>Ouverture : {formatDate(lastExercice.dateOuverture)}</p>
-                <p>Fermeture : {formatDate(lastExercice.dateFermeture)}</p>
-              </>
-            )}
+            ) : null}
+          </div>
+        ) : lastOperation?.statut ? (
+          <div className="exercice-result">
+            <p>
+              <strong>Dernière clôture</strong>
+            </p>
+            <p>
+              Statut : <StatutBadge type="exercice" statut={lastOperation.statut} />
+            </p>
+            <p>Fermeture : {formatDate(lastOperation.dateFermeture)}</p>
           </div>
         ) : null}
+      </section>
+
+      <section className="exercice-section">
+        <h3 className="membre-dash-section-title">Historique</h3>
+        {historique.length === 0 ? (
+          <p className="sheet-hint">Aucun exercice enregistré.</p>
+        ) : (
+          <ul className="exercice-history-list">
+            {historique.map((ex) => (
+              <li key={ex.id} className="exercice-history-item">
+                <div className="exercice-history-head">
+                  <StatutBadge type="exercice" statut={ex.statut} />
+                  <span className="exercice-history-dates">
+                    {formatDate(ex.dateOuverture)}
+                    {ex.dateFermeture ? ` → ${formatDate(ex.dateFermeture)}` : ''}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="exercice-section">

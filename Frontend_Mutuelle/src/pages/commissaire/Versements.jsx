@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMutuelleRefresh, useMutuelleRefreshListener } from '../../hooks/useMutuelleRefresh'
 import { api } from '../../services/api'
+import StatutBadge from '../../components/StatutBadge'
 
 function formatMoney(amount) {
   return new Intl.NumberFormat('fr-FR', {
@@ -29,24 +31,21 @@ export default function CommissaireVersements() {
   const [error, setError] = useState('')
   const [raison, setRaison] = useState('TOUS')
 
-  useEffect(() => {
-    let alive = true
-    ;(async () => {
-      try {
-        const data = await api.getTousVersements()
-        if (!alive) return
-        setItems(Array.isArray(data) ? data : [])
-      } catch (err) {
-        if (!alive) return
-        setError(err instanceof Error ? err.message : 'Chargement impossible')
-      } finally {
-        if (alive) setLoading(false)
-      }
-    })()
-    return () => {
-      alive = false
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const data = await api.getTousVersements()
+      setItems(Array.isArray(data) ? data : [])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Chargement impossible')
+    } finally {
+      setLoading(false)
     }
   }, [])
+
+  useMutuelleRefresh(load, 'versements')
 
   const filtered = useMemo(() => {
     if (raison === 'TOUS') return items
@@ -105,17 +104,7 @@ export default function CommissaireVersements() {
                     {v.raison} — {formatDate(v.dateVersement)}
                   </p>
                 </div>
-                <span
-                  className={
-                    v.statut === 'accepte'
-                      ? 'badge badge-success'
-                      : v.statut === 'refuse'
-                        ? 'badge badge-danger'
-                        : 'badge badge-warning'
-                  }
-                >
-                  {v.statut}
-                </span>
+                <StatutBadge type="versement" statut={v.statut} />
               </div>
               <div className="versement-amount">{formatMoney(v.montant)}</div>
             </li>

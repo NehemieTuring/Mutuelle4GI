@@ -22,6 +22,10 @@ public class CreateMembreRequest {
     private String couriel;
 
     @NotBlank(message = "Le téléphone est obligatoire")
+    @Pattern(
+            regexp = "^(?:\\+?237)?[26]\\d{8}$",
+            message = "Le téléphone doit être un numéro camerounais valide (mobile 6XXXXXXXX ou Camtel 2XXXXXXXX)"
+    )
     private String telephone;
 
     @Pattern(regexp = "^.*\\.(jpe?g|png)$", message = "La photo doit être au format JPEG, JPG ou PNG")

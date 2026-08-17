@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { NavLink, useParams } from 'react-router-dom'
+import { useMutuelleRefresh, useMutuelleRefreshListener } from '../../hooks/useMutuelleRefresh'
+import { NavLink, useOutletContext, useParams } from 'react-router-dom'
 import { api } from '../../services/api'
+import StatutBadge from '../../components/StatutBadge'
+import ConfirmValidationSheet from '../../components/ConfirmValidationSheet'
 
 const STATUS_FILTERS = [
   { id: 'TOUS', label: 'Tous' },
@@ -28,19 +31,6 @@ function formatDate(iso) {
   })
 }
 
-function statutBadge(statut) {
-  if (statut === 'accepte') return 'badge badge-success'
-  if (statut === 'refuse') return 'badge badge-danger'
-  return 'badge badge-warning'
-}
-
-function statutLabel(statut) {
-  if (statut === 'accepte') return 'Validé'
-  if (statut === 'refuse') return 'Refusé'
-  if (statut === 'en_attente') return 'En attente'
-  return statut || '—'
-}
-
 function raisonLabel(raison) {
   const map = {
     inscription: 'Inscription',
@@ -59,6 +49,7 @@ function membreName(membre) {
 
 export default function TrVersements() {
   const { sousOnglet } = useParams()
+  const { exerciceActif } = useOutletContext() || {}
   const mode = sousOnglet === 'tous' ? 'tous' : 'en-attente'
 
   const [versements, setVersements] = useState([])
@@ -70,6 +61,7 @@ export default function TrVersements() {
   const [actionId, setActionId] = useState(null)
   const [actionError, setActionError] = useState('')
   const [toast, setToast] = useState('')
+  const [confirm, setConfirm] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -114,54 +106,11 @@ export default function TrVersements() {
   }, [mode])
 
   useEffect(() => {
-    let alive = true
-    ;(async () => {
-      setLoading(true)
-      setError('')
-      try {
-        if (mode === 'en-attente') {
-          const [versData, rembData] = await Promise.all([
-            api.getVersementsEnAttente(),
-            api.getRemboursementsEnAttente().catch(() => []),
-          ])
-          if (!alive) return
-          const list = Array.isArray(versData) ? versData : []
-          list.sort(
-            (a, b) =>
-              new Date(b.dateVersement || 0).getTime() -
-              new Date(a.dateVersement || 0).getTime(),
-          )
-          setVersements(list)
-          const rembs = Array.isArray(rembData) ? rembData : []
-          rembs.sort(
-            (a, b) =>
-              new Date(b.dateRemboursement || 0).getTime() -
-              new Date(a.dateRemboursement || 0).getTime(),
-          )
-          setRemboursements(rembs)
-        } else {
-          const data = await api.getTousVersements()
-          if (!alive) return
-          const list = Array.isArray(data) ? data : []
-          list.sort(
-            (a, b) =>
-              new Date(b.dateVersement || 0).getTime() -
-              new Date(a.dateVersement || 0).getTime(),
-          )
-          setVersements(list)
-          setRemboursements([])
-        }
-      } catch (err) {
-        if (!alive) return
-        setError(err instanceof Error ? err.message : 'Erreur de chargement')
-      } finally {
-        if (alive) setLoading(false)
-      }
-    })()
-    return () => {
-      alive = false
-    }
-  }, [mode])
+    load()
+  }, [load])
+
+  useMutuelleRefreshListener(load, ['versements', 'remboursements'])
+
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -197,14 +146,33 @@ export default function TrVersements() {
     })
   }, [remboursements, search, mode])
 
-  const handleAccept = async (id) => {
-    setActionId(id)
+  const askConfirm = (payload) => {
+    setActionError('')
+    setConfirm(payload)
+  }
+
+  const closeConfirm = () => {
+    if (actionId) return
+    setConfirm(null)
+  }
+
+  const runConfirm = async () => {
+    if (!confirm) return
+    const { kind, item } = confirm
+    setActionId(item.id)
     setActionError('')
     try {
-      await api.accepterVersement(id)
+      if (kind === 'versement') {
+        await api.accepterVersement(item.id)
+        setToast('Versement validé.')
+      } else if (kind === 'remboursement') {
+        await api.validerRemboursement(item.id)
+        setToast('Remboursement validé.')
+      }
+      setConfirm(null)
       await load()
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'Acceptation impossible')
+      setActionError(err instanceof Error ? err.message : 'Validation impossible')
     } finally {
       setActionId(null)
     }
@@ -223,16 +191,16 @@ export default function TrVersements() {
     }
   }
 
-  const handleValiderRemboursement = async (id) => {
+  const handleRefuserRemboursement = async (id) => {
     setActionId(id)
     setActionError('')
     try {
-      await api.validerRemboursement(id)
-      setToast('Remboursement validé.')
+      await api.refuserRemboursement(id)
+      setToast('Remboursement refusé.')
       await load()
     } catch (err) {
       setActionError(
-        err instanceof Error ? err.message : 'Validation du remboursement impossible',
+        err instanceof Error ? err.message : 'Refus du remboursement impossible',
       )
     } finally {
       setActionId(null)
@@ -356,7 +324,7 @@ export default function TrVersements() {
                         <h2 className="membre-card-name">{membreName(membre)}</h2>
                         <p className="membre-card-mail">{membre?.couriel || '—'}</p>
                       </div>
-                      <span className="badge badge-warning">Attente TR</span>
+                      <StatutBadge type="remboursement" statut="en_attente_tr" />
                     </div>
                     <div className="versement-amount">{formatMoney(r.montant)}</div>
                     <div className="membre-card-meta">
@@ -368,10 +336,18 @@ export default function TrVersements() {
                       <button
                         type="button"
                         className="btn btn-accent btn-touch"
-                        disabled={actionId === r.id}
-                        onClick={() => handleValiderRemboursement(r.id)}
+                        disabled={actionId === r.id || !exerciceActif}
+                        onClick={() => askConfirm({ kind: 'remboursement', item: r })}
                       >
                         {actionId === r.id ? '…' : 'Valider'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost-dark btn-touch"
+                        disabled={actionId === r.id || !exerciceActif}
+                        onClick={() => handleRefuserRemboursement(r.id)}
+                      >
+                        Refuser
                       </button>
                     </div>
                   </li>
@@ -410,7 +386,7 @@ export default function TrVersements() {
                   <h2 className="membre-card-name">{membreName(v.membre)}</h2>
                   <p className="membre-card-mail">{v.membre?.couriel || '—'}</p>
                 </div>
-                <span className={statutBadge(v.statut)}>{statutLabel(v.statut)}</span>
+                <StatutBadge type="versement" statut={v.statut} />
               </div>
 
               <div className="versement-amount">{formatMoney(v.montant)}</div>
@@ -419,6 +395,13 @@ export default function TrVersements() {
                 <span>{raisonLabel(v.raison)}</span>
                 <span>{formatDate(v.dateVersement)}</span>
                 {v.description ? <span>{v.description}</span> : null}
+                {v.raison === 'inscription' && v.membre ? (
+                  <span>
+                    {v.membre.inscriptionPayee
+                      ? 'Inscription soldée'
+                      : 'Inscription non soldée'}
+                  </span>
+                ) : null}
               </div>
 
               {v.statut === 'en_attente' ? (
@@ -426,15 +409,15 @@ export default function TrVersements() {
                   <button
                     type="button"
                     className="btn btn-accent btn-touch"
-                    disabled={actionId === v.id}
-                    onClick={() => handleAccept(v.id)}
+                    disabled={actionId === v.id || !exerciceActif}
+                    onClick={() => askConfirm({ kind: 'versement', item: v })}
                   >
                     {actionId === v.id ? '…' : 'Valider'}
                   </button>
                   <button
                     type="button"
                     className="btn btn-danger-outline btn-touch"
-                    disabled={actionId === v.id}
+                    disabled={actionId === v.id || !exerciceActif}
                     onClick={() => handleRefuse(v.id)}
                   >
                     Refuser
@@ -445,6 +428,46 @@ export default function TrVersements() {
           ))}
         </ul>
       )}
+
+      <ConfirmValidationSheet
+        open={Boolean(confirm)}
+        title={
+          confirm?.kind === 'remboursement'
+            ? 'Confirmer le remboursement'
+            : 'Confirmer la réception'
+        }
+        lead={
+          confirm?.kind === 'remboursement'
+            ? 'Confirmez que vous avez bien reçu ce remboursement de prêt.'
+            : 'Confirmez que vous avez bien reçu cette somme du membre.'
+        }
+        montant={confirm?.item?.montant}
+        details={
+          confirm
+            ? [
+                {
+                  label: 'Membre',
+                  value: membreName(
+                    confirm.kind === 'remboursement'
+                      ? confirm.item?.pret?.membre
+                      : confirm.item?.membre,
+                  ),
+                },
+                {
+                  label: 'Type',
+                  value:
+                    confirm.kind === 'remboursement'
+                      ? 'Remboursement de prêt'
+                      : raisonLabel(confirm.item?.raison),
+                },
+              ]
+            : []
+        }
+        confirmLabel="Oui, je confirme"
+        busy={Boolean(actionId)}
+        onConfirm={runConfirm}
+        onCancel={closeConfirm}
+      />
     </div>
   )
 }

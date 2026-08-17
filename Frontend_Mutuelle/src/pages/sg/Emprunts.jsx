@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMutuelleRefresh, useMutuelleRefreshListener } from '../../hooks/useMutuelleRefresh'
 import { api } from '../../services/api'
+import StatutBadge from '../../components/StatutBadge'
 
 function formatMoney(amount) {
   return new Intl.NumberFormat('fr-FR', {
@@ -22,12 +24,6 @@ function membreName(membre) {
   if (!membre) return 'Membre inconnu'
   const name = [membre.prenom, membre.nom].filter(Boolean).join(' ')
   return name || membre.couriel || '—'
-}
-
-function rembStatutLabel(s) {
-  if (s === 'valide_tr') return 'Validé'
-  if (s === 'en_attente_tr') return 'En attente TR'
-  return s || '—'
 }
 
 export default function SgEmprunts() {
@@ -56,26 +52,8 @@ export default function SgEmprunts() {
 
   const [nowMs] = useState(() => Date.now())
 
-  useEffect(() => {
-    let alive = true
-    ;(async () => {
-      setLoading(true)
-      setError('')
-      try {
-        const data = await api.getTousPrets()
-        if (!alive) return
-        setPrets(Array.isArray(data) ? data : [])
-      } catch (err) {
-        if (!alive) return
-        setError(err instanceof Error ? err.message : 'Erreur de chargement')
-      } finally {
-        if (alive) setLoading(false)
-      }
-    })()
-    return () => {
-      alive = false
-    }
-  }, [])
+  useMutuelleRefresh(load, 'prets')
+
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -210,21 +188,11 @@ export default function SgEmprunts() {
                     <h2 className="membre-card-name">{membreName(p.membre)}</h2>
                     <p className="membre-card-mail">{p.membre?.couriel || '—'}</p>
                   </div>
-                  <span
-                    className={
-                      p.statut === 'rembourse'
-                        ? 'badge badge-success'
-                        : overdue
-                          ? 'badge badge-danger'
-                          : 'badge badge-warning'
-                    }
-                  >
-                    {p.statut === 'rembourse'
-                      ? 'Remboursé'
-                      : overdue
-                        ? 'Échéance dépassée'
-                        : 'Non remboursé'}
-                  </span>
+                  <StatutBadge
+                    type="pret"
+                    statut={p.statut}
+                    echu={overdue && p.statut !== 'rembourse'}
+                  />
                 </div>
 
                 <div className="versement-amount">{formatMoney(p.montant)}</div>
@@ -276,15 +244,7 @@ export default function SgEmprunts() {
                           <li key={r.id} className="sg-remb-item">
                             <span>{formatMoney(r.montant)}</span>
                             <span>{formatDate(r.dateRemboursement)}</span>
-                            <span
-                              className={
-                                r.statut === 'valide_tr'
-                                  ? 'badge badge-success'
-                                  : 'badge badge-warning'
-                              }
-                            >
-                              {rembStatutLabel(r.statut)}
-                            </span>
+                            <StatutBadge type="remboursement" statut={r.statut} />
                           </li>
                         ))}
                       </ul>

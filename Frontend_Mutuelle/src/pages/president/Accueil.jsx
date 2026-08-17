@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useMutuelleRefresh } from '../../hooks/useMutuelleRefresh'
 import { api } from '../../services/api'
 import CaissesOverview from '../../components/CaissesOverview'
 
@@ -38,9 +39,8 @@ export default function PresidentAccueil() {
     }
   }
 
-  useEffect(() => {
-    load()
-  }, [])
+  useMutuelleRefresh(load, null)
+
 
   const stats = useMemo(() => {
     const now = Date.now()

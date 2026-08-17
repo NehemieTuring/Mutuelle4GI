@@ -28,11 +28,16 @@ public class Remboursement {
     private Pret pret;
 
     @NotNull
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "exercice_id", nullable = false)
+    private Exercice exercice;
+
+    @NotNull
     @Column(name = "montant", nullable = false, precision = 15, scale = 2)
     private BigDecimal montant;
 
     @NotNull
     @Column(name = "statut", nullable = false, length = 50)
     @Builder.Default
-    private String statut = "en_attente_tr"; // "en_attente_tr", "valide_tr"
+    private String statut = "en_attente_tr"; // "en_attente_tr", "valide_tr", "refuse_tr"
 }

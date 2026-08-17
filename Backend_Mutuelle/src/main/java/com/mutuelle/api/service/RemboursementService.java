@@ -1,5 +1,6 @@
 package com.mutuelle.api.service;
 
+import com.mutuelle.api.entity.Exercice;
 import com.mutuelle.api.entity.Membre;
 import com.mutuelle.api.entity.ParametresGeneraux;
 import com.mutuelle.api.entity.Pret;
@@ -47,6 +48,9 @@ public class RemboursementService {
     @Autowired
     private SimulationClock simulationClock;
 
+    @Autowired
+    private ExerciceService exerciceService;
+
     public List<Pret> obtenirTousPrets() {
         return pretRepository.findAllByOrderByDatePretDesc();
     }
@@ -60,6 +64,7 @@ public class RemboursementService {
     }
 
     public Remboursement demanderRemboursement(String pretId, BigDecimal montant) {
+        Exercice exercice = exerciceService.requireExerciceEnCours();
         Pret pret = pretRepository.findById(pretId)
                 .orElseThrow(() -> new IllegalArgumentException("L'emprunt avec l'id " + pretId + " n'existe pas"));
 
@@ -94,6 +99,7 @@ public class RemboursementService {
         Remboursement remboursement = Remboursement.builder()
                 .id(UUID.randomUUID().toString())
                 .pret(pret)
+                .exercice(exercice)
                 .montant(montant)
                 .dateRemboursement(simulationClock.now())
                 .statut("en_attente_tr")
@@ -112,6 +118,7 @@ public class RemboursementService {
     }
 
     public Remboursement validerRemboursement(String remboursementId) {
+        exerciceService.requireExerciceEnCours();
         Remboursement remboursement = remboursementRepository.findById(remboursementId)
                 .orElseThrow(() -> new IllegalArgumentException("Le remboursement avec l'id " + remboursementId + " n'existe pas"));
 
@@ -153,6 +160,28 @@ public class RemboursementService {
 
         log.info("[NOTIFICATION - TRESORIER] Remboursement de {} validé pour le membre {}. Dette emprunt restante: {}. Caisse épargne mise à jour.",
                 remboursement.getMontant(), membre.getCouriel(), membre.getDette());
+
+        return saved;
+    }
+
+    public Remboursement refuserRemboursement(String remboursementId) {
+        exerciceService.requireExerciceEnCours();
+        Remboursement remboursement = remboursementRepository.findById(remboursementId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Le remboursement avec l'id " + remboursementId + " n'existe pas"));
+
+        if (!"en_attente_tr".equals(remboursement.getStatut())) {
+            throw new IllegalStateException(
+                    "Le remboursement n'est pas en attente de validation, statut actuel : "
+                            + remboursement.getStatut());
+        }
+
+        remboursement.setStatut("refuse_tr");
+        Remboursement saved = remboursementRepository.save(remboursement);
+
+        log.info("[NOTIFICATION - TRESORIER] Remboursement {} refusé (montant: {}, prêt: {}).",
+                remboursementId, remboursement.getMontant(),
+                remboursement.getPret() != null ? remboursement.getPret().getId() : null);
 
         return saved;
     }
@@ -206,6 +235,7 @@ public class RemboursementService {
     }
 
     public void appliquerPenalite(String pretId) {
+        exerciceService.requireExerciceEnCours();
         Pret pret = pretRepository.findById(pretId)
                 .orElseThrow(() -> new IllegalArgumentException("L'emprunt avec l'id " + pretId + " n'existe pas"));
 
