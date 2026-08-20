@@ -17,4 +17,6 @@ public interface VersementRepository extends JpaRepository<Versement, String> {
     List<Versement> findByMembreIdAndRaisonOrderByDateVersementDesc(String membreId, RaisonVersement raison);
 
     List<Versement> findByRaisonOrderByDateVersementDesc(RaisonVersement raison);
+
+    boolean existsByDescriptionContaining(String fragment);
 }

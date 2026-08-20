@@ -1,5 +1,6 @@
 package com.mutuelle.api.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
@@ -37,6 +38,7 @@ public class Pret {
     private Membre membre;
 
     @NotNull
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "exercice_id", nullable = false)
     private Exercice exercice;

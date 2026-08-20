@@ -1,5 +1,6 @@
 package com.mutuelle.api.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
@@ -37,6 +38,7 @@ public class Versement {
     @JoinColumn(name = "membre_id", nullable = false)
     private Membre membre;
 
+    @JsonIgnore
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "exercice_id", nullable = false)
     private Exercice exercice;

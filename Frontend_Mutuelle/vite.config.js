@@ -83,10 +83,9 @@ export default defineConfig(({ mode }) => {
       }),
     ],
     server: {
-      host: '0.0.0.0',
+      host: 'localhost',
       port: 5173,
       strictPort: true,
-      allowedHosts: true,
       proxy: {
         '/api': {
           target: backendUrl,
@@ -103,10 +102,9 @@ export default defineConfig(({ mode }) => {
       },
     },
     preview: {
-      host: '0.0.0.0',
+      host: 'localhost',
       port: 5173,
       strictPort: true,
-      allowedHosts: true,
       proxy: {
         '/api': {
           target: backendUrl,
